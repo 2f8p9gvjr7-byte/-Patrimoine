@@ -105,6 +105,41 @@ body{padding-bottom:40px}
 }
 .donut-val{font-size:15px;font-weight:800;color:var(--txt);text-align:center;padding:0 6px}
 .donut-lbl{font-size:9px;font-weight:700;color:var(--mut);letter-spacing:.5px;text-transform:uppercase;margin-top:2px}
+
+/* Par organisme */
+.org-card{background:var(--pan);border:1px solid var(--bor);border-radius:12px;margin-bottom:10px;overflow:hidden}
+.org-head{display:flex;align-items:center;justify-content:space-between;padding:11px 13px;background:var(--pan2);border-bottom:1px solid var(--bor)}
+.org-head .nm{font-size:13.5px;font-weight:800;color:var(--amber)}
+.org-head .tot{font-size:13.5px;font-weight:800;color:var(--txt)}
+.org-line{display:flex;align-items:center;justify-content:space-between;padding:9px 13px;border-bottom:1px solid var(--bor);gap:10px}
+.org-line:last-child{border-bottom:none}
+.org-line .lft{flex:1;min-width:0}
+.org-line .cat{font-size:9.5px;font-weight:700;color:var(--mut);letter-spacing:.4px;text-transform:uppercase}
+.org-line .ttl{font-size:13px;color:var(--sub);margin-top:1px}
+.org-line .amt{font-size:13px;font-weight:700;color:var(--txt);white-space:nowrap}
+.org-total-band{display:flex;align-items:center;justify-content:space-between;background:var(--pan2);border:1px solid var(--amber-dim);border-radius:12px;padding:13px;margin:4px 0 16px;font-weight:800}
+.org-total-band .l{color:var(--amber);font-size:12px;letter-spacing:.4px;text-transform:uppercase}
+.org-total-band .v{color:var(--txt);font-size:16px}
+
+.print-only{display:none}
+@media print{
+  body{background:#fff !important;color:#111 !important;padding:0}
+  #header, #tabs, .no-print, #update-banner, .savebar{display:none !important}
+  .view{display:none !important}
+  #view-organisme{display:block !important}
+  .print-only{display:block !important;margin-bottom:16px}
+  .print-only h1{font-size:19px;margin-bottom:4px;color:#111}
+  #print-date{font-size:11px;color:#555}
+  .hint{color:#555}
+  .section-title{color:#333;border-bottom:1px solid #ccc;padding-bottom:4px}
+  .org-card{background:#fff !important;border:1px solid #ccc !important;break-inside:avoid}
+  .org-head{background:#f2f2f2 !important;border-bottom:1px solid #ccc !important}
+  .org-head .nm, .org-total-band .v, .org-line .amt{color:#111 !important}
+  .org-line{border-bottom:1px solid #eee !important}
+  .org-line .ttl{color:#333 !important}
+  .org-total-band{background:#f2f2f2 !important;border:1px solid #999 !important}
+  .org-total-band .l{color:#333 !important}
+}
 .breakdown-row{display:flex;align-items:center;justify-content:space-between;padding:11px 13px;border-bottom:1px solid var(--bor)}
 .breakdown-row:last-child{border-bottom:none}
 .breakdown-row .dot{width:8px;height:8px;border-radius:50%;margin-right:9px;flex:0 0 auto}
@@ -154,6 +189,11 @@ body{padding-bottom:40px}
 .titre-head .total{font-size:12px;font-weight:700;color:var(--sub);white-space:nowrap}
 .ligne-card{background:var(--input-bg);border:1px solid var(--input-bor);border-radius:8px;padding:8px;margin-bottom:7px}
 .ligne-top{display:flex;gap:7px;align-items:center;margin-bottom:6px}
+.ligne-top input.organisme{
+  flex:0 0 34%;min-width:0;background:transparent;border:none;border-bottom:1px solid var(--bor);color:var(--mut);
+  padding:5px 2px;font-size:11.5px;font-weight:600;-webkit-appearance:none;font-family:inherit;
+}
+.ligne-top input.organisme:focus{outline:none;border-bottom-color:var(--amber);color:var(--sub)}
 .ligne-top input.nom{
   flex:1;min-width:0;background:transparent;border:none;border-bottom:1px solid var(--bor);color:var(--txt);
   padding:5px 2px;font-size:13.5px;font-weight:700;-webkit-appearance:none;font-family:inherit;
@@ -236,6 +276,7 @@ body{padding-bottom:40px}
   <div class="tab" data-view="tresorerie"><span class="n">8</span>Trésorerie</div>
   <div class="tab" data-view="emprunts"><span class="n">9</span>Emprunts</div>
   <div class="tab" data-view="cartes"><span class="n">10</span>Crédit court terme</div>
+  <div class="tab" data-view="organisme"><span class="n">🏦</span>Par organisme</div>
 </div>
 
 <div id="content">
@@ -353,6 +394,23 @@ body{padding-bottom:40px}
     <button class="btn-add" id="btn-add-carte">+ Ajouter une dette</button>
   </div>
 
+  <!-- PAR ORGANISME -->
+  <div class="view" id="view-organisme">
+    <div class="hint">Vue consolidée de tous vos avoirs et dettes financiers, regroupés par organisme (hors véhicules et immobilier).</div>
+    <button class="btn-add no-print" id="btn-print-organisme" style="border-style:solid">🖨️ Imprimer / Exporter en PDF</button>
+
+    <div id="print-title" class="print-only">
+      <h1>Bilan Patrimoine — Récapitulatif par organisme</h1>
+      <div id="print-date"></div>
+    </div>
+
+    <div class="section-title">Actifs financiers</div>
+    <div id="organisme-actif-list"></div>
+
+    <div class="section-title">Dettes financières</div>
+    <div id="organisme-passif-list"></div>
+  </div>
+
 </div>
 
 <div class="savebar"><span class="dot"></span>Enregistré automatiquement sur cet appareil</div>
@@ -406,6 +464,7 @@ function load(){
 function save(){
   try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
   renderSynthese();
+  renderParOrganisme();
 }
 
 /* ===================== Helpers ===================== */
@@ -442,15 +501,27 @@ function renderSimpleList(containerId, list, opts){
   list.forEach((item, i)=>{
     const card = document.createElement('div');
     card.className = 'card';
+    const nomBlock = opts.withOrganisme ? `
+      <div class="row2">
+        <div class="field">
+          <label>Organisme</label>
+          <input type="text" data-key="organisme" data-i="${i}" value="${escapeHtml(item.organisme||'')}" placeholder="${opts.organismePlaceholder||'Ex. BNP Paribas'}">
+        </div>
+        <div class="field">
+          <label>${opts.nomLabel}</label>
+          <input type="text" data-key="nom" data-i="${i}" value="${escapeHtml(item.nom||'')}" placeholder="${opts.nomPlaceholder}">
+        </div>
+      </div>` : `
+      <div class="field">
+        <label>${opts.nomLabel}</label>
+        <input type="text" data-key="nom" data-i="${i}" value="${escapeHtml(item.nom||'')}" placeholder="${opts.nomPlaceholder}">
+      </div>`;
     card.innerHTML = `
       <div class="card-head">
         <span class="idx">${opts.labelPrefix} ${i+1}</span>
         <button class="btn-del" data-i="${i}">✕</button>
       </div>
-      <div class="field">
-        <label>${opts.nomLabel}</label>
-        <input type="text" data-key="nom" data-i="${i}" value="${escapeHtml(item.nom||'')}" placeholder="${opts.nomPlaceholder}">
-      </div>
+      ${nomBlock}
       ${opts.extraFields ? opts.extraFields(item, i) : ''}
       <div class="field">
         <label>${opts.valLabel}</label>
@@ -574,6 +645,7 @@ function renderMobilier(){
       row.className = 'ligne-card';
       row.innerHTML = `
         <div class="ligne-top">
+          <input class="organisme" type="text" data-ti="${ti}" data-li="${li}" data-key="organisme" value="${escapeHtml(ligne.organisme||'')}" placeholder="Courtier / banque">
           <input class="nom" type="text" data-ti="${ti}" data-li="${li}" data-key="nom" value="${escapeHtml(ligne.nom||'')}" placeholder="Nom (ex. BNP Paribas)">
           <button class="del" data-ti="${ti}" data-li="${li}">✕</button>
         </div>
@@ -620,7 +692,7 @@ function renderMobilier(){
     btn.addEventListener('click', ()=>{
       const ti = +btn.dataset.titreAdd;
       if(state.titres[ti].lignes.length >= MAX_LIGNES) return;
-      state.titres[ti].lignes.push({ nom:'', valeur:'', cout:'' });
+      state.titres[ti].lignes.push({ organisme:'', nom:'', valeur:'', cout:'' });
       save(); renderMobilier();
     });
   });
@@ -630,15 +702,17 @@ function renderMobilier(){
 function renderAV(){
   renderSimpleList('av-list', state.av, {
     labelPrefix: 'Contrat',
-    nomLabel: 'Nom du contrat / assureur',
-    nomPlaceholder: 'Ex. AV Generali — Fonds euros',
+    withOrganisme: true,
+    organismePlaceholder: 'Ex. Generali, Boursorama…',
+    nomLabel: 'Nom du contrat',
+    nomPlaceholder: 'Ex. Fonds euros, Multisupport…',
     valLabel: 'Valeur de rachat (€)'
   });
   document.getElementById('btn-add-av').disabled = state.av.length >= MAX_AV;
 }
 document.getElementById('btn-add-av').addEventListener('click', ()=>{
   if(state.av.length >= MAX_AV) return;
-  state.av.push({ nom:'', valeur:'' });
+  state.av.push({ organisme:'', nom:'', valeur:'' });
   save(); renderAV();
 });
 
@@ -646,13 +720,15 @@ document.getElementById('btn-add-av').addEventListener('click', ()=>{
 function renderPEL(){
   renderSimpleList('pel-list', state.pel, {
     labelPrefix: 'PEL',
-    nomLabel: 'Nom / banque',
-    nomPlaceholder: 'Ex. PEL Crédit Agricole',
+    withOrganisme: true,
+    organismePlaceholder: 'Ex. Caisse d\'Épargne, Crédit Agricole…',
+    nomLabel: 'Titre du produit',
+    nomPlaceholder: 'Ex. PEL, LEL',
     valLabel: 'Capital + intérêts acquis (€)'
   });
 }
 document.getElementById('btn-add-pel').addEventListener('click', ()=>{
-  state.pel.push({ nom:'', valeur:'' });
+  state.pel.push({ organisme:'', nom:'', valeur:'' });
   save(); renderPEL();
 });
 
@@ -660,6 +736,8 @@ document.getElementById('btn-add-pel').addEventListener('click', ()=>{
 function renderObligations(){
   renderSimpleList('obligations-list', state.obligations, {
     labelPrefix: 'Ligne',
+    withOrganisme: true,
+    organismePlaceholder: 'Ex. État français, Boursorama…',
     nomLabel: 'Nom de l\'obligation',
     nomPlaceholder: 'Ex. OAT France 2035',
     valLabel: 'Valeur (€)'
@@ -668,7 +746,7 @@ function renderObligations(){
 }
 document.getElementById('btn-add-obligation').addEventListener('click', ()=>{
   if(state.obligations.length >= MAX_OBLIG) return;
-  state.obligations.push({ nom:'', valeur:'' });
+  state.obligations.push({ organisme:'', nom:'', valeur:'' });
   save(); renderObligations();
 });
 
@@ -676,15 +754,17 @@ document.getElementById('btn-add-obligation').addEventListener('click', ()=>{
 function renderLivrets(){
   renderSimpleList('livrets-list', state.livrets, {
     labelPrefix: 'Livret',
-    nomLabel: 'Nom du livret',
-    nomPlaceholder: 'Ex. Livret A — Papa, LEP, Livret Jeune — Enfant 1…',
+    withOrganisme: true,
+    organismePlaceholder: 'Ex. Caisse d\'Épargne, LCL…',
+    nomLabel: 'Titre du livret',
+    nomPlaceholder: 'Ex. Livret A, LDDS, LEP…',
     valLabel: 'Solde (€)'
   });
   document.getElementById('btn-add-livret').disabled = state.livrets.length >= MAX_LIVRETS;
 }
 document.getElementById('btn-add-livret').addEventListener('click', ()=>{
   if(state.livrets.length >= MAX_LIVRETS) return;
-  state.livrets.push({ nom:'', valeur:'' });
+  state.livrets.push({ organisme:'', nom:'', valeur:'' });
   save(); renderLivrets();
 });
 
@@ -692,13 +772,15 @@ document.getElementById('btn-add-livret').addEventListener('click', ()=>{
 function renderTresorerie(){
   renderSimpleList('tresorerie-list', state.tresorerie, {
     labelPrefix: 'Compte',
+    withOrganisme: true,
+    organismePlaceholder: 'Ex. Boursorama, BNP Paribas…',
     nomLabel: 'Nom du compte',
-    nomPlaceholder: 'Ex. Compte courant Boursorama…',
+    nomPlaceholder: 'Ex. Compte courant',
     valLabel: 'Solde disponible (€)'
   });
 }
 document.getElementById('btn-add-tresorerie').addEventListener('click', ()=>{
-  state.tresorerie.push({ nom:'', valeur:'' });
+  state.tresorerie.push({ organisme:'', nom:'', valeur:'' });
   save(); renderTresorerie();
 });
 
@@ -706,7 +788,9 @@ document.getElementById('btn-add-tresorerie').addEventListener('click', ()=>{
 function renderEmprunts(){
   renderSimpleList('emprunts-list', state.emprunts, {
     labelPrefix: 'Emprunt',
-    nomLabel: 'Nom / objet du prêt',
+    withOrganisme: true,
+    organismePlaceholder: 'Ex. Crédit Agricole, Société Générale…',
+    nomLabel: 'Objet du prêt',
     nomPlaceholder: 'Ex. Prêt immobilier résidence principale',
     valLabel: 'Capital restant dû (€)',
     valKey: 'crd',
@@ -724,7 +808,7 @@ function renderEmprunts(){
   });
 }
 document.getElementById('btn-add-emprunt').addEventListener('click', ()=>{
-  state.emprunts.push({ nom:'', crd:'', mensualite:'', taux:'' });
+  state.emprunts.push({ organisme:'', nom:'', crd:'', mensualite:'', taux:'' });
   save(); renderEmprunts();
 });
 
@@ -732,14 +816,16 @@ document.getElementById('btn-add-emprunt').addEventListener('click', ()=>{
 function renderCartes(){
   renderSimpleList('cartes-list', state.cartes, {
     labelPrefix: 'Dette',
-    nomLabel: 'Nature / établissement',
-    nomPlaceholder: 'Ex. Visa Premier différé, Découvert BNP, Crédit renouvelable Cofidis…',
+    withOrganisme: true,
+    organismePlaceholder: 'Ex. BNP Paribas, Cofidis…',
+    nomLabel: 'Nature de la dette',
+    nomPlaceholder: 'Ex. Visa Premier différé, Découvert, Crédit renouvelable…',
     valLabel: 'Encours (€)',
     valKey: 'encours'
   });
 }
 document.getElementById('btn-add-carte').addEventListener('click', ()=>{
-  state.cartes.push({ nom:'', encours:'' });
+  state.cartes.push({ organisme:'', nom:'', encours:'' });
   save(); renderCartes();
 });
 
@@ -834,6 +920,109 @@ function pvRowHtml(name, ecart, pct){
     </span>
   </div>`;
 }
+
+/* ===================== PAR ORGANISME ===================== */
+function collectFinancialLines(kind){
+  const lines = [];
+  if(kind === 'actif'){
+    state.titres.forEach((titre)=>{
+      const cat = titre.nom && titre.nom.trim() ? titre.nom.trim() : 'Valeurs mobilières';
+      titre.lignes.forEach(l=>{
+        if((l.nom && l.nom.trim()) || num(l.valeur) !== 0){
+          lines.push({ organisme: l.organisme, categorie: cat, titre: l.nom, montant: num(l.valeur) });
+        }
+      });
+    });
+    const simple = [
+      [state.av, 'Assurance vie', 'valeur'],
+      [state.pel, 'PEL', 'valeur'],
+      [state.obligations, 'Obligations', 'valeur'],
+      [state.livrets, 'Livrets', 'valeur'],
+      [state.tresorerie, 'Trésorerie', 'valeur'],
+    ];
+    simple.forEach(([arr, cat, key])=>{
+      arr.forEach(item=>{
+        if((item.nom && item.nom.trim()) || num(item[key]) !== 0){
+          lines.push({ organisme: item.organisme, categorie: cat, titre: item.nom, montant: num(item[key]) });
+        }
+      });
+    });
+  } else {
+    state.emprunts.forEach(item=>{
+      if((item.nom && item.nom.trim()) || num(item.crd) !== 0){
+        lines.push({ organisme: item.organisme, categorie: 'Emprunt', titre: item.nom, montant: num(item.crd) });
+      }
+    });
+    state.cartes.forEach(item=>{
+      if((item.nom && item.nom.trim()) || num(item.encours) !== 0){
+        lines.push({ organisme: item.organisme, categorie: 'Crédit court terme', titre: item.nom, montant: num(item.encours) });
+      }
+    });
+  }
+  return lines;
+}
+
+function groupByOrganisme(lines){
+  const map = new Map();
+  lines.forEach(l=>{
+    const key = (l.organisme && l.organisme.trim()) ? l.organisme.trim() : 'Non renseigné';
+    if(!map.has(key)) map.set(key, []);
+    map.get(key).push(l);
+  });
+  const entries = Array.from(map.entries());
+  entries.sort((a,b)=>{
+    if(a[0] === 'Non renseigné') return 1;
+    if(b[0] === 'Non renseigné') return -1;
+    return a[0].localeCompare(b[0], 'fr');
+  });
+  return entries;
+}
+
+function renderOrganismeGroup(containerId, kind){
+  const el = document.getElementById(containerId);
+  const lines = collectFinancialLines(kind);
+  if(lines.length === 0){
+    el.innerHTML = '<div class="empty-note">Aucune donnée pour l\'instant.</div>';
+    return;
+  }
+  const groups = groupByOrganisme(lines);
+  let grandTotal = 0;
+  let html = '';
+  groups.forEach(([organisme, items])=>{
+    const subtotal = items.reduce((a,i)=> a + i.montant, 0);
+    grandTotal += subtotal;
+    html += `<div class="org-card">
+      <div class="org-head"><span class="nm">${escapeHtml(organisme)}</span><span class="tot">${fmt(subtotal)}</span></div>
+      ${items.map(i => `
+        <div class="org-line">
+          <div class="lft">
+            <div class="cat">${escapeHtml(i.categorie)}</div>
+            <div class="ttl">${escapeHtml(i.titre && i.titre.trim() ? i.titre.trim() : 'Sans nom')}</div>
+          </div>
+          <div class="amt">${fmt(i.montant)}</div>
+        </div>`).join('')}
+    </div>`;
+  });
+  const label = kind === 'actif' ? 'Total actifs financiers' : 'Total dettes financières';
+  html += `<div class="org-total-band"><span class="l">${label}</span><span class="v">${fmt(grandTotal)}</span></div>`;
+  el.innerHTML = html;
+}
+
+function renderParOrganisme(){
+  if(!document.getElementById('organisme-actif-list')) return;
+  renderOrganismeGroup('organisme-actif-list', 'actif');
+  renderOrganismeGroup('organisme-passif-list', 'passif');
+}
+
+document.getElementById('btn-print-organisme').addEventListener('click', ()=>{
+  document.getElementById('print-date').textContent =
+    'Généré le ' + new Date().toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' });
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelector('.tab[data-view="organisme"]').classList.add('active');
+  document.getElementById('view-organisme').classList.add('active');
+  setTimeout(()=> window.print(), 50);
+});
 function buildDonut(rows, total){
   const el = document.getElementById('donut-actif');
   const totalEl = document.getElementById('donut-total');
@@ -888,6 +1077,7 @@ function renderAll(){
   renderEmprunts();
   renderCartes();
   renderSynthese();
+  renderParOrganisme();
 }
 renderAll();
 
