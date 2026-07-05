@@ -94,6 +94,17 @@ body{padding-bottom:40px}
 .balance-pct{display:flex;justify-content:space-between;font-size:10px;color:var(--mut);margin-top:6px}
 
 .breakdown{background:var(--pan);border:1px solid var(--bor);border-radius:12px;overflow:hidden;margin-bottom:14px}
+
+.donut-card{background:var(--pan);border:1px solid var(--bor);border-radius:12px;padding:18px;margin-bottom:16px;display:flex;justify-content:center}
+.donut-wrap{position:relative;width:172px;height:172px}
+.donut{width:100%;height:100%;border-radius:50%;background:var(--bor);transition:background .3s}
+.donut-hole{
+  position:absolute;top:19%;left:19%;width:62%;height:62%;border-radius:50%;
+  background:var(--pan);display:flex;flex-direction:column;align-items:center;justify-content:center;
+  box-shadow:inset 0 0 0 1px var(--bor);
+}
+.donut-val{font-size:15px;font-weight:800;color:var(--txt);text-align:center;padding:0 6px}
+.donut-lbl{font-size:9px;font-weight:700;color:var(--mut);letter-spacing:.5px;text-transform:uppercase;margin-top:2px}
 .breakdown-row{display:flex;align-items:center;justify-content:space-between;padding:11px 13px;border-bottom:1px solid var(--bor)}
 .breakdown-row:last-child{border-bottom:none}
 .breakdown-row .dot{width:8px;height:8px;border-radius:50%;margin-right:9px;flex:0 0 auto}
@@ -216,13 +227,15 @@ body{padding-bottom:40px}
 <div id="tabs">
   <div class="tab active" data-view="synthese"><span class="n">Σ</span>Synthèse</div>
   <div class="tab" data-view="immobilier"><span class="n">1</span>Immobilier</div>
-  <div class="tab" data-view="mobilier"><span class="n">2</span>Valeurs mobilières</div>
-  <div class="tab" data-view="av"><span class="n">3</span>Assurance vie</div>
-  <div class="tab" data-view="pel"><span class="n">4</span>PEL</div>
-  <div class="tab" data-view="obligations"><span class="n">5</span>Obligations</div>
-  <div class="tab" data-view="tresorerie"><span class="n">6</span>Trésorerie</div>
-  <div class="tab" data-view="emprunts"><span class="n">7</span>Emprunts</div>
-  <div class="tab" data-view="cartes"><span class="n">8</span>Cartes différé</div>
+  <div class="tab" data-view="vehicules"><span class="n">2</span>Véhicules</div>
+  <div class="tab" data-view="mobilier"><span class="n">3</span>Valeurs mobilières</div>
+  <div class="tab" data-view="av"><span class="n">4</span>Assurance vie</div>
+  <div class="tab" data-view="pel"><span class="n">5</span>PEL</div>
+  <div class="tab" data-view="obligations"><span class="n">6</span>Obligations</div>
+  <div class="tab" data-view="livrets"><span class="n">7</span>Livrets</div>
+  <div class="tab" data-view="tresorerie"><span class="n">8</span>Trésorerie</div>
+  <div class="tab" data-view="emprunts"><span class="n">9</span>Emprunts</div>
+  <div class="tab" data-view="cartes"><span class="n">10</span>Crédit court terme</div>
 </div>
 
 <div id="content">
@@ -245,6 +258,17 @@ body{padding-bottom:40px}
       <div class="balance-pct"><span id="bal-a-pct">0%</span><span id="bal-p-pct">0%</span></div>
     </div>
 
+    <div class="section-title">Répartition de l'actif</div>
+    <div class="donut-card">
+      <div class="donut-wrap">
+        <div class="donut" id="donut-actif"></div>
+        <div class="donut-hole">
+          <div class="donut-val" id="donut-total">0 €</div>
+          <div class="donut-lbl">Actif total</div>
+        </div>
+      </div>
+    </div>
+
     <div class="section-title">Détail de l'actif</div>
     <div class="breakdown" id="breakdown-actif"></div>
 
@@ -265,6 +289,13 @@ body{padding-bottom:40px}
     <div class="hint">Jusqu'à 10 biens immobiliers. Résidence principale, secondaire, locatif…</div>
     <div id="immobilier-list"></div>
     <button class="btn-add" id="btn-add-immo">+ Ajouter un bien</button>
+  </div>
+
+  <!-- VEHICULES -->
+  <div class="view" id="view-vehicules">
+    <div class="hint">Jusqu'à 10 véhicules. Valeur de reprise / cote actuelle (ex. Argus), pas le prix d'achat.</div>
+    <div id="vehicules-list"></div>
+    <button class="btn-add" id="btn-add-vehicule">+ Ajouter un véhicule</button>
   </div>
 
   <!-- VALEURS MOBILIERES -->
@@ -294,9 +325,16 @@ body{padding-bottom:40px}
     <button class="btn-add" id="btn-add-obligation">+ Ajouter une obligation</button>
   </div>
 
+  <!-- LIVRETS -->
+  <div class="view" id="view-livrets">
+    <div class="hint">Jusqu'à 10 livrets — Livret A, LDDS, LEP, Livret Jeune… y compris ceux des enfants.</div>
+    <div id="livrets-list"></div>
+    <button class="btn-add" id="btn-add-livret">+ Ajouter un livret</button>
+  </div>
+
   <!-- TRESORERIE -->
   <div class="view" id="view-tresorerie">
-    <div class="hint">Comptes courants, livrets, disponibilités immédiates.</div>
+    <div class="hint">Comptes courants, disponibilités immédiates.</div>
     <div id="tresorerie-list"></div>
     <button class="btn-add" id="btn-add-tresorerie">+ Ajouter un compte</button>
   </div>
@@ -308,11 +346,11 @@ body{padding-bottom:40px}
     <button class="btn-add" id="btn-add-emprunt">+ Ajouter un emprunt</button>
   </div>
 
-  <!-- CARTES DIFFERE -->
+  <!-- CREDIT COURT TERME -->
   <div class="view" id="view-cartes">
-    <div class="hint">Encours des cartes bancaires à débit différé, non encore prélevés.</div>
+    <div class="hint">Cartes à débit différé, découverts bancaires, crédits renouvelables, autres dettes exigibles à court terme.</div>
     <div id="cartes-list"></div>
-    <button class="btn-add" id="btn-add-carte">+ Ajouter une carte</button>
+    <button class="btn-add" id="btn-add-carte">+ Ajouter une dette</button>
   </div>
 
 </div>
@@ -331,18 +369,22 @@ body{padding-bottom:40px}
 /* ===================== Data ===================== */
 const STORE_KEY = 'patrimoine_v1';
 const MAX_IMMO = 10;
+const MAX_VEHICULES = 10;
 const MAX_TITRES = 10;
 const MAX_LIGNES = 20;
 const MAX_AV = 20;
 const MAX_OBLIG = 20;
+const MAX_LIVRETS = 10;
 
 function defaultState(){
   return {
     immobilier: [],
+    vehicules: [],
     titres: Array.from({length: MAX_TITRES}, () => ({ nom: '', lignes: [] })),
     av: [],
     pel: [],
     obligations: [],
+    livrets: [],
     tresorerie: [],
     emprunts: [],
     cartes: []
@@ -463,6 +505,35 @@ document.getElementById('btn-add-immo').addEventListener('click', ()=>{
   if(state.immobilier.length >= MAX_IMMO) return;
   state.immobilier.push({ nom:'', usage:'', valeur:'' });
   save(); renderImmobilier();
+});
+
+/* ===================== VEHICULES ===================== */
+function renderVehicules(){
+  renderSimpleList('vehicules-list', state.vehicules, {
+    labelPrefix: 'Véhicule',
+    nomLabel: 'Désignation',
+    nomPlaceholder: 'Ex. Peugeot 3008 2022',
+    valLabel: 'Valeur de reprise estimée (€)',
+    extraFields: (item, i) => `
+      <div class="field">
+        <label>Type</label>
+        <select data-key="usage" data-i="${i}">
+          <option value="" ${!item.usage?'selected':''}>—</option>
+          <option value="Voiture" ${item.usage==='Voiture'?'selected':''}>Voiture</option>
+          <option value="Moto" ${item.usage==='Moto'?'selected':''}>Moto</option>
+          <option value="Utilitaire" ${item.usage==='Utilitaire'?'selected':''}>Utilitaire</option>
+          <option value="Bateau" ${item.usage==='Bateau'?'selected':''}>Bateau</option>
+          <option value="Camping-car" ${item.usage==='Camping-car'?'selected':''}>Camping-car</option>
+          <option value="Autre" ${item.usage==='Autre'?'selected':''}>Autre</option>
+        </select>
+      </div>`
+  });
+  document.getElementById('btn-add-vehicule').disabled = state.vehicules.length >= MAX_VEHICULES;
+}
+document.getElementById('btn-add-vehicule').addEventListener('click', ()=>{
+  if(state.vehicules.length >= MAX_VEHICULES) return;
+  state.vehicules.push({ nom:'', usage:'', valeur:'' });
+  save(); renderVehicules();
 });
 
 /* ===================== VALEURS MOBILIERES ===================== */
@@ -601,12 +672,28 @@ document.getElementById('btn-add-obligation').addEventListener('click', ()=>{
   save(); renderObligations();
 });
 
+/* ===================== LIVRETS ===================== */
+function renderLivrets(){
+  renderSimpleList('livrets-list', state.livrets, {
+    labelPrefix: 'Livret',
+    nomLabel: 'Nom du livret',
+    nomPlaceholder: 'Ex. Livret A — Papa, LEP, Livret Jeune — Enfant 1…',
+    valLabel: 'Solde (€)'
+  });
+  document.getElementById('btn-add-livret').disabled = state.livrets.length >= MAX_LIVRETS;
+}
+document.getElementById('btn-add-livret').addEventListener('click', ()=>{
+  if(state.livrets.length >= MAX_LIVRETS) return;
+  state.livrets.push({ nom:'', valeur:'' });
+  save(); renderLivrets();
+});
+
 /* ===================== TRESORERIE ===================== */
 function renderTresorerie(){
   renderSimpleList('tresorerie-list', state.tresorerie, {
     labelPrefix: 'Compte',
     nomLabel: 'Nom du compte',
-    nomPlaceholder: 'Ex. Compte courant, Livret A…',
+    nomPlaceholder: 'Ex. Compte courant Boursorama…',
     valLabel: 'Solde disponible (€)'
   });
 }
@@ -641,13 +728,13 @@ document.getElementById('btn-add-emprunt').addEventListener('click', ()=>{
   save(); renderEmprunts();
 });
 
-/* ===================== CARTES DIFFERE ===================== */
+/* ===================== CREDIT COURT TERME ===================== */
 function renderCartes(){
   renderSimpleList('cartes-list', state.cartes, {
-    labelPrefix: 'Carte',
-    nomLabel: 'Nom de la carte / banque',
-    nomPlaceholder: 'Ex. Visa Premier — débit différé',
-    valLabel: 'Encours à débiter (€)',
+    labelPrefix: 'Dette',
+    nomLabel: 'Nature / établissement',
+    nomPlaceholder: 'Ex. Visa Premier différé, Découvert BNP, Crédit renouvelable Cofidis…',
+    valLabel: 'Encours (€)',
     valKey: 'encours'
   });
 }
@@ -659,12 +746,14 @@ document.getElementById('btn-add-carte').addEventListener('click', ()=>{
 /* ===================== SYNTHESE ===================== */
 function renderSynthese(){
   const totalImmo = sumBy(state.immobilier, 'valeur');
+  const totalVehicules = sumBy(state.vehicules, 'valeur');
   const totalMobilier = state.titres.reduce((a,t)=> a + sumBy(t.lignes, 'valeur'), 0);
   const totalAV = sumBy(state.av, 'valeur');
   const totalPEL = sumBy(state.pel, 'valeur');
   const totalObligations = sumBy(state.obligations, 'valeur');
+  const totalLivrets = sumBy(state.livrets, 'valeur');
   const totalTreso = sumBy(state.tresorerie, 'valeur');
-  const totalActif = totalImmo + totalMobilier + totalAV + totalPEL + totalObligations + totalTreso;
+  const totalActif = totalImmo + totalVehicules + totalMobilier + totalAV + totalPEL + totalObligations + totalLivrets + totalTreso;
 
   const totalEmprunts = sumBy(state.emprunts, 'crd');
   const totalCartes = sumBy(state.cartes, 'encours');
@@ -687,19 +776,23 @@ function renderSynthese(){
 
   const actifRows = [
     ['Immobilier', totalImmo, '#4ade80'],
+    ['Véhicules', totalVehicules, '#94a3b8'],
     ['Valeurs mobilières', totalMobilier, '#60a5fa'],
     ['Assurance vie', totalAV, '#e6c07f'],
     ['PEL', totalPEL, '#c084fc'],
     ['Obligations', totalObligations, '#f472b6'],
+    ['Livrets', totalLivrets, '#38bdf8'],
     ['Trésorerie', totalTreso, '#2dd4bf'],
   ];
   const bA = document.getElementById('breakdown-actif');
   bA.innerHTML = actifRows.map(r => breakdownRowHtml(r[0], r[1], r[2], false, totalActif)).join('')
     + breakdownRowHtml('Total actif', totalActif, null, true, totalActif);
 
+  buildDonut(actifRows, totalActif);
+
   const passifRows = [
     ['Emprunts (capital restant dû)', totalEmprunts, '#f87171'],
-    ['Cartes à débit différé', totalCartes, '#fb923c'],
+    ['Crédit à court terme', totalCartes, '#fb923c'],
   ];
   const bP = document.getElementById('breakdown-passif');
   bP.innerHTML = passifRows.map(r => breakdownRowHtml(r[0], r[1], r[2], false, totalPassif)).join('')
@@ -741,6 +834,28 @@ function pvRowHtml(name, ecart, pct){
     </span>
   </div>`;
 }
+function buildDonut(rows, total){
+  const el = document.getElementById('donut-actif');
+  const totalEl = document.getElementById('donut-total');
+  totalEl.textContent = fmt(total);
+  if(!el) return;
+  const positive = rows.filter(r => num(r[1]) > 0);
+  if(total <= 0 || positive.length === 0){
+    el.style.background = 'var(--bor)';
+    return;
+  }
+  let cursor = 0;
+  const stops = [];
+  positive.forEach(r=>{
+    const amt = num(r[1]), color = r[2];
+    const pct = amt / total * 100;
+    const start = cursor;
+    const end = cursor + pct;
+    stops.push(`${color} ${start.toFixed(2)}% ${end.toFixed(2)}%`);
+    cursor = end;
+  });
+  el.style.background = `conic-gradient(${stops.join(', ')})`;
+}
 function breakdownRowHtml(name, amt, color, total, base){
   const pct = base > 0 ? Math.round(amt / base * 100) : 0;
   return `<div class="breakdown-row ${total?'total':''}">
@@ -763,10 +878,12 @@ document.getElementById('btn-reset').addEventListener('click', ()=>{
 /* ===================== Render all ===================== */
 function renderAll(){
   renderImmobilier();
+  renderVehicules();
   renderMobilier();
   renderAV();
   renderPEL();
   renderObligations();
+  renderLivrets();
   renderTresorerie();
   renderEmprunts();
   renderCartes();
