@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Patrimoine">
+<meta name="theme-color" content="#0a1226">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Bilan Patrimoine</title>
+<style>
+:root{
+  --bg:#0a1226; --pan:#16294a; --pan2:#1d3358; --bor:#2a4477;
+  --txt:#f3efe6; --sub:#c7d2e3; --mut:#8996b3;
+  --amber:#e6c07f; --amber-dim:#8a7147;
+  --green:#4ade80; --green-dim:#1f3a2a;
+  --red:#f87171; --red-dim:#3a2222;
+  --blue:#60a5fa;
+  --input-bg:#15284b; --input-bor:#2a4477;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;min-height:100vh;font-size:15px;-webkit-text-size-adjust:100%}
+body{padding-bottom:40px}
+
+/* Header */
+#header{
+  position:sticky;top:0;z-index:100;
+  background:linear-gradient(180deg,#16294a 0%,#0a1226 100%);
+  border-bottom:2px solid var(--amber);
+  padding:12px 14px;display:flex;align-items:center;justify-content:space-between;
+  box-shadow:0 2px 10px rgba(0,0,0,.35);
+}
+.logo{display:flex;align-items:center;gap:9px}
+.logo-badge{width:30px;height:30px;border-radius:8px;background:var(--pan2);border:1px solid var(--amber-dim);display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.logo-badge svg{width:18px;height:18px}
+.logo-text .t1{font-size:16px;font-weight:800;color:var(--txt);letter-spacing:.3px;line-height:1.1}
+.logo-text .t2{font-size:10px;color:var(--amber);letter-spacing:1.5px;text-transform:uppercase;font-weight:700}
+#btn-reset{
+  background:var(--red-dim);color:#f2c6c6;border:1px solid #5a3232;
+  padding:7px 11px;font-size:11px;font-weight:700;letter-spacing:.3px;
+  border-radius:6px;-webkit-appearance:none;cursor:pointer;
+}
+#btn-reset:active{opacity:.7}
+
+/* Tabs */
+#tabs{
+  display:flex;overflow-x:auto;gap:6px;padding:10px 10px;
+  background:#0b0d12;border-bottom:1px solid var(--bor);
+  -webkit-overflow-scrolling:touch;scrollbar-width:none;
+  position:sticky;top:56px;z-index:99;
+}
+#tabs::-webkit-scrollbar{display:none}
+.tab{
+  flex:0 0 auto;font-size:12px;font-weight:700;letter-spacing:.2px;
+  padding:9px 12px;background:var(--pan);border:1px solid var(--bor);
+  border-top:3px solid transparent;color:var(--sub);cursor:pointer;border-radius:7px;
+  -webkit-appearance:none;white-space:nowrap;display:flex;align-items:center;gap:6px;
+}
+.tab.active{color:var(--amber);border-top-color:var(--amber);background:var(--pan2)}
+.tab .n{display:inline-flex;align-items:center;justify-content:center;background:var(--bor);color:var(--sub);width:16px;height:16px;border-radius:50%;font-size:9px;font-weight:800}
+.tab.active .n{background:var(--amber);color:#0e1015}
+
+/* Content */
+#content{padding:14px 12px 24px}
+.view{display:none}
+.view.active{display:block}
+
+.section-title{font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--mut);margin:18px 2px 8px}
+.section-title:first-child{margin-top:2px}
+.hint{font-size:12px;color:var(--mut);margin:0 2px 10px;line-height:1.5}
+
+/* Synthèse cards */
+.kpi-row{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:9px}
+.kpi{background:var(--pan);border:1px solid var(--bor);border-radius:12px;padding:13px}
+.kpi .lbl{font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--mut);margin-bottom:6px}
+.kpi .val{font-size:19px;font-weight:800;letter-spacing:.2px}
+.kpi.actif .val{color:var(--green)}
+.kpi.passif .val{color:var(--red)}
+.kpi-net{background:var(--pan2);border:1px solid var(--amber-dim);border-radius:12px;padding:16px;margin-bottom:16px;text-align:center}
+.kpi-net .lbl{font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--amber);margin-bottom:6px}
+.kpi-net .val{font-size:28px;font-weight:900;color:var(--txt)}
+.kpi-net .sub{font-size:11px;color:var(--mut);margin-top:4px}
+
+/* Balance bar (signature) */
+.balance-wrap{background:var(--pan);border:1px solid var(--bor);border-radius:12px;padding:14px;margin-bottom:16px}
+.balance-labels{display:flex;justify-content:space-between;font-size:11px;font-weight:700;margin-bottom:7px}
+.balance-labels .a{color:var(--green)}
+.balance-labels .p{color:var(--red)}
+.balance-track{height:14px;border-radius:8px;overflow:hidden;display:flex;background:var(--bor)}
+.balance-track .seg-a{background:linear-gradient(90deg,#2a7a4f,var(--green))}
+.balance-track .seg-p{background:linear-gradient(90deg,var(--red),#7a2a2a)}
+.balance-pct{display:flex;justify-content:space-between;font-size:10px;color:var(--mut);margin-top:6px}
+
+.breakdown{background:var(--pan);border:1px solid var(--bor);border-radius:12px;overflow:hidden;margin-bottom:14px}
+.breakdown-row{display:flex;align-items:center;justify-content:space-between;padding:11px 13px;border-bottom:1px solid var(--bor)}
+.breakdown-row:last-child{border-bottom:none}
+.breakdown-row .dot{width:8px;height:8px;border-radius:50%;margin-right:9px;flex:0 0 auto}
+.breakdown-row .name{display:flex;align-items:center;font-size:13px;color:var(--sub);flex:1}
+.breakdown-row .amt-wrap{display:flex;align-items:baseline;gap:8px}
+.breakdown-row .amt{font-size:13px;font-weight:700}
+.breakdown-row .pct{font-size:10px;font-weight:700;color:var(--mut);background:var(--input-bg);border:1px solid var(--bor);border-radius:5px;padding:2px 5px;min-width:30px;text-align:center}
+.breakdown-row.total{background:var(--pan2)}
+.breakdown-row.total .name, .breakdown-row.total .amt{color:var(--txt);font-weight:800}
+
+/* Cards / rows for editable lists */
+.card{background:var(--pan);border:1px solid var(--bor);border-radius:12px;padding:12px;margin-bottom:10px}
+.card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
+.card-head .idx{font-size:10px;font-weight:800;color:var(--amber);letter-spacing:1px;text-transform:uppercase}
+.btn-del{background:var(--red-dim);color:#f2c6c6;border:1px solid #5a3232;width:26px;height:26px;border-radius:6px;font-size:14px;font-weight:800;line-height:1;-webkit-appearance:none;cursor:pointer}
+.btn-del:active{opacity:.7}
+
+.field{margin-bottom:8px}
+.field:last-child{margin-bottom:0}
+.field label{display:block;font-size:10px;font-weight:700;color:var(--mut);letter-spacing:.4px;text-transform:uppercase;margin-bottom:4px}
+.field input, .field select{
+  width:100%;background:var(--input-bg);border:1px solid var(--input-bor);color:var(--txt);
+  padding:9px 10px;border-radius:7px;font-size:14px;-webkit-appearance:none;font-family:inherit;
+}
+.field input:focus, .field select:focus{outline:none;border-color:var(--amber)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+.btn-add{
+  width:100%;background:var(--pan2);border:1.5px dashed var(--amber-dim);color:var(--amber);
+  padding:12px;border-radius:10px;font-size:13px;font-weight:700;letter-spacing:.3px;
+  -webkit-appearance:none;cursor:pointer;margin-top:2px;margin-bottom:14px;
+}
+.btn-add:active{opacity:.7}
+.btn-add:disabled{opacity:.35}
+
+.empty-note{font-size:12px;color:var(--mut);text-align:center;padding:16px 8px}
+
+/* Titre (valeurs mobilières) block */
+.titre-card{background:var(--pan);border:1px solid var(--bor);border-radius:12px;padding:12px;margin-bottom:12px}
+.titre-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.titre-head .n{width:22px;height:22px;border-radius:50%;background:var(--bor);color:var(--sub);font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.titre-head input{
+  flex:1;background:transparent;border:none;border-bottom:1px solid var(--input-bor);color:var(--amber);
+  font-size:14px;font-weight:800;padding:5px 2px;-webkit-appearance:none;font-family:inherit;
+}
+.titre-head input:focus{outline:none;border-bottom-color:var(--amber)}
+.titre-head .total{font-size:12px;font-weight:700;color:var(--sub);white-space:nowrap}
+.ligne-card{background:var(--input-bg);border:1px solid var(--input-bor);border-radius:8px;padding:8px;margin-bottom:7px}
+.ligne-top{display:flex;gap:7px;align-items:center;margin-bottom:6px}
+.ligne-top input.nom{
+  flex:1;min-width:0;background:transparent;border:none;border-bottom:1px solid var(--bor);color:var(--txt);
+  padding:5px 2px;font-size:13.5px;font-weight:700;-webkit-appearance:none;font-family:inherit;
+}
+.ligne-top input.nom:focus{outline:none;border-bottom-color:var(--amber)}
+.ligne-top .del{width:24px;height:24px;flex:0 0 auto;background:var(--red-dim);border:1px solid #5a3232;color:#f2c6c6;border-radius:6px;font-size:12px;font-weight:800;-webkit-appearance:none}
+.ligne-bottom{display:flex;gap:6px;align-items:center}
+.ligne-bottom .fld{flex:1;min-width:0}
+.ligne-bottom .fld label{display:block;font-size:8.5px;font-weight:700;color:var(--mut);letter-spacing:.3px;text-transform:uppercase;margin-bottom:2px}
+.ligne-bottom input{
+  width:100%;background:var(--bg);border:1px solid var(--bor);color:var(--txt);
+  padding:6px 8px;border-radius:6px;font-size:12.5px;-webkit-appearance:none;font-family:inherit;
+}
+.ligne-bottom .ecart{flex:0 0 auto;font-size:10.5px;font-weight:800;padding:6px 8px;border-radius:6px;white-space:nowrap;text-align:center;align-self:flex-end;min-width:64px}
+.ecart-plus{background:var(--green-dim);color:var(--green)}
+.ecart-moins{background:var(--red-dim);color:var(--red)}
+.ecart-neutre{background:var(--bor);color:var(--mut)}
+.btn-add-ligne{
+  width:100%;background:transparent;border:1px dashed var(--bor);color:var(--mut);
+  padding:8px;border-radius:7px;font-size:12px;font-weight:700;margin-top:2px;-webkit-appearance:none;cursor:pointer;
+}
+.btn-add-ligne:disabled{opacity:.3}
+
+/* Footer save note */
+.savebar{display:flex;align-items:center;justify-content:center;gap:6px;font-size:11px;color:var(--mut);padding:10px 0 2px}
+.savebar .dot{width:6px;height:6px;border-radius:50%;background:var(--green)}
+
+/* Update banner */
+#update-banner{
+  position:fixed;left:10px;right:10px;bottom:-120px;z-index:200;
+  background:var(--pan2);border:1px solid var(--amber-dim);border-radius:12px;
+  padding:13px 14px;box-shadow:0 6px 24px rgba(0,0,0,.45);
+  display:flex;align-items:center;gap:11px;
+  transition:bottom .35s ease;
+}
+#update-banner.show{bottom:14px}
+#update-banner .msg{flex:1;font-size:12.5px;color:var(--sub);line-height:1.4}
+#update-banner .msg b{color:var(--amber);display:block;font-size:13px;margin-bottom:1px}
+#update-banner .actions{display:flex;flex-direction:column;gap:6px;flex:0 0 auto}
+#btn-update-now{
+  background:var(--amber);color:#0a1226;border:none;padding:8px 13px;border-radius:7px;
+  font-size:12px;font-weight:800;-webkit-appearance:none;cursor:pointer;white-space:nowrap;
+}
+#btn-update-later{
+  background:transparent;color:var(--mut);border:none;padding:2px 4px;
+  font-size:11px;-webkit-appearance:none;cursor:pointer;
+}
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div class="logo">
+    <div class="logo-badge">
+      <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <line x1="50" y1="22" x2="50" y2="78" stroke="#d4a657" stroke-width="5"/>
+        <line x1="24" y1="22" x2="76" y2="22" stroke="#d4a657" stroke-width="5"/>
+        <rect x="34" y="78" width="32" height="6" rx="3" fill="#d4a657"/>
+        <path d="M14 22 L24 48 A11 11 0 0 0 4 48 Z" stroke="#d4a657" stroke-width="4" fill="none"/>
+        <path d="M86 22 L96 48 A11 11 0 0 0 76 48 Z" stroke="#d4a657" stroke-width="4" fill="none"/>
+      </svg>
+    </div>
+    <div class="logo-text">
+      <div class="t1">Bilan Patrimoine</div>
+      <div class="t2">Actif · Passif</div>
+    </div>
+  </div>
+  <button id="btn-reset">RÉINITIALISER</button>
+</div>
+
+<div id="tabs">
+  <div class="tab active" data-view="synthese"><span class="n">Σ</span>Synthèse</div>
+  <div class="tab" data-view="immobilier"><span class="n">1</span>Immobilier</div>
+  <div class="tab" data-view="mobilier"><span class="n">2</span>Valeurs mobilières</div>
+  <div class="tab" data-view="av"><span class="n">3</span>Assurance vie</div>
+  <div class="tab" data-view="pel"><span class="n">4</span>PEL</div>
+  <div class="tab" data-view="obligations"><span class="n">5</span>Obligations</div>
+  <div class="tab" data-view="tresorerie"><span class="n">6</span>Trésorerie</div>
+  <div class="tab" data-view="emprunts"><span class="n">7</span>Emprunts</div>
+  <div class="tab" data-view="cartes"><span class="n">8</span>Cartes différé</div>
+</div>
+
+<div id="content">
+
+  <!-- SYNTHESE -->
+  <div class="view active" id="view-synthese">
+    <div class="kpi-row">
+      <div class="kpi actif"><div class="lbl">Total actif</div><div class="val" id="s-actif">0 €</div></div>
+      <div class="kpi passif"><div class="lbl">Total passif</div><div class="val" id="s-passif">0 €</div></div>
+    </div>
+    <div class="kpi-net">
+      <div class="lbl">Patrimoine net</div>
+      <div class="val" id="s-net">0 €</div>
+      <div class="sub" id="s-net-sub">Actif − Passif</div>
+    </div>
+
+    <div class="balance-wrap">
+      <div class="balance-labels"><span class="a">Actif</span><span class="p">Passif</span></div>
+      <div class="balance-track"><div class="seg-a" id="bal-a" style="width:50%"></div><div class="seg-p" id="bal-p" style="width:50%"></div></div>
+      <div class="balance-pct"><span id="bal-a-pct">0%</span><span id="bal-p-pct">0%</span></div>
+    </div>
+
+    <div class="section-title">Détail de l'actif</div>
+    <div class="breakdown" id="breakdown-actif"></div>
+
+    <div class="section-title">Détail du passif</div>
+    <div class="breakdown" id="breakdown-passif"></div>
+
+    <div class="section-title">Plus-values / moins-values latentes</div>
+    <div class="hint" style="margin-top:-4px">Pour information (valeurs mobilières) — n'affecte pas le total actif/passif ci-dessus.</div>
+    <div class="kpi-net" id="pv-total-wrap" style="padding:12px;margin-bottom:10px">
+      <div class="lbl">Écart net latent</div>
+      <div class="val" id="pv-total" style="font-size:20px">0 €</div>
+    </div>
+    <div class="breakdown" id="breakdown-pv"></div>
+  </div>
+
+  <!-- IMMOBILIER -->
+  <div class="view" id="view-immobilier">
+    <div class="hint">Jusqu'à 10 biens immobiliers. Résidence principale, secondaire, locatif…</div>
+    <div id="immobilier-list"></div>
+    <button class="btn-add" id="btn-add-immo">+ Ajouter un bien</button>
+  </div>
+
+  <!-- VALEURS MOBILIERES -->
+  <div class="view" id="view-mobilier">
+    <div class="hint">10 titres (catégories) à nommer librement — ex. Actions, ETF, PEA, Livrets… Chaque titre contient jusqu'à 20 lignes.</div>
+    <div id="mobilier-list"></div>
+  </div>
+
+  <!-- ASSURANCE VIE -->
+  <div class="view" id="view-av">
+    <div class="hint">Jusqu'à 20 contrats d'assurance vie.</div>
+    <div id="av-list"></div>
+    <button class="btn-add" id="btn-add-av">+ Ajouter un contrat</button>
+  </div>
+
+  <!-- PEL -->
+  <div class="view" id="view-pel">
+    <div class="hint">Plans épargne logement — capital + intérêts acquis.</div>
+    <div id="pel-list"></div>
+    <button class="btn-add" id="btn-add-pel">+ Ajouter un PEL</button>
+  </div>
+
+  <!-- OBLIGATIONS -->
+  <div class="view" id="view-obligations">
+    <div class="hint">Jusqu'à 20 lignes d'obligations (État, entreprises, fonds obligataires…).</div>
+    <div id="obligations-list"></div>
+    <button class="btn-add" id="btn-add-obligation">+ Ajouter une obligation</button>
+  </div>
+
+  <!-- TRESORERIE -->
+  <div class="view" id="view-tresorerie">
+    <div class="hint">Comptes courants, livrets, disponibilités immédiates.</div>
+    <div id="tresorerie-list"></div>
+    <button class="btn-add" id="btn-add-tresorerie">+ Ajouter un compte</button>
+  </div>
+
+  <!-- EMPRUNTS -->
+  <div class="view" id="view-emprunts">
+    <div class="hint">Emprunts en cours (immobilier, conso…). Le capital restant dû est compté au passif.</div>
+    <div id="emprunts-list"></div>
+    <button class="btn-add" id="btn-add-emprunt">+ Ajouter un emprunt</button>
+  </div>
+
+  <!-- CARTES DIFFERE -->
+  <div class="view" id="view-cartes">
+    <div class="hint">Encours des cartes bancaires à débit différé, non encore prélevés.</div>
+    <div id="cartes-list"></div>
+    <button class="btn-add" id="btn-add-carte">+ Ajouter une carte</button>
+  </div>
+
+</div>
+
+<div class="savebar"><span class="dot"></span>Enregistré automatiquement sur cet appareil</div>
+
+<div id="update-banner">
+  <div class="msg"><b>Nouvelle version disponible</b>Tes données sont conservées, seule l'application est mise à jour.</div>
+  <div class="actions">
+    <button id="btn-update-now">Mettre à jour</button>
+    <button id="btn-update-later">Plus tard</button>
+  </div>
+</div>
+
+<script>
+/* ===================== Data ===================== */
+const STORE_KEY = 'patrimoine_v1';
+const MAX_IMMO = 10;
+const MAX_TITRES = 10;
+const MAX_LIGNES = 20;
+const MAX_AV = 20;
+const MAX_OBLIG = 20;
+
+function defaultState(){
+  return {
+    immobilier: [],
+    titres: Array.from({length: MAX_TITRES}, () => ({ nom: '', lignes: [] })),
+    av: [],
+    pel: [],
+    obligations: [],
+    tresorerie: [],
+    emprunts: [],
+    cartes: []
+  };
+}
+
+let state = load();
+
+function load(){
+  try{
+    const raw = localStorage.getItem(STORE_KEY);
+    if(!raw) return defaultState();
+    const parsed = JSON.parse(raw);
+    const d = defaultState();
+    return Object.assign(d, parsed);
+  }catch(e){ return defaultState(); }
+}
+
+function save(){
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
+  renderSynthese();
+}
+
+/* ===================== Helpers ===================== */
+function fmt(n){
+  n = Number(n) || 0;
+  return n.toLocaleString('fr-FR', { style:'currency', currency:'EUR', maximumFractionDigits:0 });
+}
+function num(v){
+  if(v === '' || v === null || v === undefined) return 0;
+  const n = parseFloat(String(v).replace(',', '.'));
+  return isNaN(n) ? 0 : n;
+}
+function sumBy(arr, key){ return arr.reduce((a,x)=> a + num(x[key]), 0); }
+
+/* ===================== Tabs ===================== */
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('view-' + tab.dataset.view).classList.add('active');
+    window.scrollTo({top:0, behavior:'instant'});
+  });
+});
+
+/* ===================== Generic simple list (nom + valeur) ===================== */
+function renderSimpleList(containerId, list, opts){
+  const c = document.getElementById(containerId);
+  c.innerHTML = '';
+  if(list.length === 0){
+    c.innerHTML = '<div class="empty-note">Aucune ligne pour l\'instant.</div>';
+    return;
+  }
+  list.forEach((item, i)=>{
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="card-head">
+        <span class="idx">${opts.labelPrefix} ${i+1}</span>
+        <button class="btn-del" data-i="${i}">✕</button>
+      </div>
+      <div class="field">
+        <label>${opts.nomLabel}</label>
+        <input type="text" data-key="nom" data-i="${i}" value="${escapeHtml(item.nom||'')}" placeholder="${opts.nomPlaceholder}">
+      </div>
+      ${opts.extraFields ? opts.extraFields(item, i) : ''}
+      <div class="field">
+        <label>${opts.valLabel}</label>
+        <input type="text" inputmode="decimal" data-key="${opts.valKey||'valeur'}" data-i="${i}" value="${item[opts.valKey||'valeur']||''}" placeholder="0">
+      </div>
+    `;
+    c.appendChild(card);
+  });
+  c.querySelectorAll('input, select').forEach(inp=>{
+    const handler = ()=>{
+      const i = +inp.dataset.i, key = inp.dataset.key;
+      list[i][key] = inp.value;
+      save();
+    };
+    inp.addEventListener('input', handler);
+    inp.addEventListener('change', handler);
+  });
+  c.querySelectorAll('.btn-del').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      list.splice(+btn.dataset.i, 1);
+      save();
+      renderAll();
+    });
+  });
+}
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+/* ===================== IMMOBILIER ===================== */
+function renderImmobilier(){
+  renderSimpleList('immobilier-list', state.immobilier, {
+    labelPrefix: 'Bien',
+    nomLabel: 'Désignation',
+    nomPlaceholder: 'Ex. Résidence principale — Lyon',
+    valLabel: 'Valeur estimée (€)',
+    extraFields: (item, i) => `
+      <div class="field">
+        <label>Usage</label>
+        <select data-key="usage" data-i="${i}">
+          <option value="" ${!item.usage?'selected':''}>—</option>
+          <option value="Résidence principale" ${item.usage==='Résidence principale'?'selected':''}>Résidence principale</option>
+          <option value="Résidence secondaire" ${item.usage==='Résidence secondaire'?'selected':''}>Résidence secondaire</option>
+          <option value="Locatif" ${item.usage==='Locatif'?'selected':''}>Locatif</option>
+          <option value="Autre" ${item.usage==='Autre'?'selected':''}>Autre</option>
+        </select>
+      </div>`
+  });
+  document.getElementById('btn-add-immo').disabled = state.immobilier.length >= MAX_IMMO;
+}
+document.getElementById('btn-add-immo').addEventListener('click', ()=>{
+  if(state.immobilier.length >= MAX_IMMO) return;
+  state.immobilier.push({ nom:'', usage:'', valeur:'' });
+  save(); renderImmobilier();
+});
+
+/* ===================== VALEURS MOBILIERES ===================== */
+function ecartInfo(ligne){
+  const valeur = num(ligne.valeur), cout = num(ligne.cout);
+  if(!ligne.cout || cout === 0) return null; // pas de coût renseigné -> pas de suivi
+  const ecart = valeur - cout;
+  const pct = cout !== 0 ? (ecart/cout*100) : 0;
+  return { ecart, pct };
+}
+function ecartBadgeHtml(info){
+  if(!info) return `<span class="ecart ecart-neutre">—</span>`;
+  const cls = info.ecart > 0 ? 'ecart-plus' : (info.ecart < 0 ? 'ecart-moins' : 'ecart-neutre');
+  const sign = info.ecart > 0 ? '+' : '';
+  return `<span class="ecart ${cls}">${sign}${fmt(info.ecart)}</span>`;
+}
+
+function renderMobilier(){
+  const c = document.getElementById('mobilier-list');
+  c.innerHTML = '';
+  state.titres.forEach((titre, ti)=>{
+    const total = sumBy(titre.lignes, 'valeur');
+    const wrap = document.createElement('div');
+    wrap.className = 'titre-card';
+    wrap.innerHTML = `
+      <div class="titre-head">
+        <span class="n">${ti+1}</span>
+        <input type="text" data-titre="${ti}" value="${escapeHtml(titre.nom||'')}" placeholder="Nom du titre (ex. Actions, ETF, PEA…)">
+        <span class="total">${fmt(total)}</span>
+      </div>
+      <div class="lignes" data-titre-lignes="${ti}"></div>
+      <button class="btn-add-ligne" data-titre-add="${ti}" ${titre.lignes.length>=MAX_LIGNES?'disabled':''}>+ Ajouter une ligne (${titre.lignes.length}/${MAX_LIGNES})</button>
+    `;
+    c.appendChild(wrap);
+    const lc = wrap.querySelector(`[data-titre-lignes="${ti}"]`);
+    titre.lignes.forEach((ligne, li)=>{
+      const row = document.createElement('div');
+      row.className = 'ligne-card';
+      row.innerHTML = `
+        <div class="ligne-top">
+          <input class="nom" type="text" data-ti="${ti}" data-li="${li}" data-key="nom" value="${escapeHtml(ligne.nom||'')}" placeholder="Nom (ex. BNP Paribas)">
+          <button class="del" data-ti="${ti}" data-li="${li}">✕</button>
+        </div>
+        <div class="ligne-bottom">
+          <div class="fld"><label>Coût d'achat</label><input type="text" inputmode="decimal" data-ti="${ti}" data-li="${li}" data-key="cout" value="${ligne.cout||''}" placeholder="€"></div>
+          <div class="fld"><label>Valeur actuelle</label><input type="text" inputmode="decimal" data-ti="${ti}" data-li="${li}" data-key="valeur" value="${ligne.valeur||''}" placeholder="€"></div>
+          <div class="fld" style="flex:0 0 auto"><label>Écart</label>${ecartBadgeHtml(ecartInfo(ligne))}</div>
+        </div>
+      `;
+      lc.appendChild(row);
+    });
+  });
+
+  c.querySelectorAll('[data-titre]').forEach(inp=>{
+    inp.addEventListener('input', ()=>{
+      state.titres[+inp.dataset.titre].nom = inp.value;
+      save();
+    });
+  });
+  c.querySelectorAll('.ligne-card input').forEach(inp=>{
+    inp.addEventListener('input', ()=>{
+      const ti = +inp.dataset.ti, li = +inp.dataset.li, key = inp.dataset.key;
+      const ligne = state.titres[ti].lignes[li];
+      ligne[key] = inp.value;
+      save();
+      // update running total + écart badge without full re-render (keeps focus)
+      const total = sumBy(state.titres[ti].lignes, 'valeur');
+      const card = c.children[ti];
+      if(card){
+        card.querySelector('.total').textContent = fmt(total);
+        const row = card.querySelectorAll('.ligne-card')[li];
+        if(row) row.querySelector('.ecart').outerHTML = ecartBadgeHtml(ecartInfo(ligne));
+      }
+    });
+  });
+  c.querySelectorAll('.ligne-card .del').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const ti = +btn.dataset.ti, li = +btn.dataset.li;
+      state.titres[ti].lignes.splice(li, 1);
+      save(); renderMobilier();
+    });
+  });
+  c.querySelectorAll('[data-titre-add]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const ti = +btn.dataset.titreAdd;
+      if(state.titres[ti].lignes.length >= MAX_LIGNES) return;
+      state.titres[ti].lignes.push({ nom:'', valeur:'', cout:'' });
+      save(); renderMobilier();
+    });
+  });
+}
+
+/* ===================== ASSURANCE VIE ===================== */
+function renderAV(){
+  renderSimpleList('av-list', state.av, {
+    labelPrefix: 'Contrat',
+    nomLabel: 'Nom du contrat / assureur',
+    nomPlaceholder: 'Ex. AV Generali — Fonds euros',
+    valLabel: 'Valeur de rachat (€)'
+  });
+  document.getElementById('btn-add-av').disabled = state.av.length >= MAX_AV;
+}
+document.getElementById('btn-add-av').addEventListener('click', ()=>{
+  if(state.av.length >= MAX_AV) return;
+  state.av.push({ nom:'', valeur:'' });
+  save(); renderAV();
+});
+
+/* ===================== PEL ===================== */
+function renderPEL(){
+  renderSimpleList('pel-list', state.pel, {
+    labelPrefix: 'PEL',
+    nomLabel: 'Nom / banque',
+    nomPlaceholder: 'Ex. PEL Crédit Agricole',
+    valLabel: 'Capital + intérêts acquis (€)'
+  });
+}
+document.getElementById('btn-add-pel').addEventListener('click', ()=>{
+  state.pel.push({ nom:'', valeur:'' });
+  save(); renderPEL();
+});
+
+/* ===================== OBLIGATIONS ===================== */
+function renderObligations(){
+  renderSimpleList('obligations-list', state.obligations, {
+    labelPrefix: 'Ligne',
+    nomLabel: 'Nom de l\'obligation',
+    nomPlaceholder: 'Ex. OAT France 2035',
+    valLabel: 'Valeur (€)'
+  });
+  document.getElementById('btn-add-obligation').disabled = state.obligations.length >= MAX_OBLIG;
+}
+document.getElementById('btn-add-obligation').addEventListener('click', ()=>{
+  if(state.obligations.length >= MAX_OBLIG) return;
+  state.obligations.push({ nom:'', valeur:'' });
+  save(); renderObligations();
+});
+
+/* ===================== TRESORERIE ===================== */
+function renderTresorerie(){
+  renderSimpleList('tresorerie-list', state.tresorerie, {
+    labelPrefix: 'Compte',
+    nomLabel: 'Nom du compte',
+    nomPlaceholder: 'Ex. Compte courant, Livret A…',
+    valLabel: 'Solde disponible (€)'
+  });
+}
+document.getElementById('btn-add-tresorerie').addEventListener('click', ()=>{
+  state.tresorerie.push({ nom:'', valeur:'' });
+  save(); renderTresorerie();
+});
+
+/* ===================== EMPRUNTS ===================== */
+function renderEmprunts(){
+  renderSimpleList('emprunts-list', state.emprunts, {
+    labelPrefix: 'Emprunt',
+    nomLabel: 'Nom / objet du prêt',
+    nomPlaceholder: 'Ex. Prêt immobilier résidence principale',
+    valLabel: 'Capital restant dû (€)',
+    valKey: 'crd',
+    extraFields: (item, i) => `
+      <div class="row2">
+        <div class="field">
+          <label>Mensualité (€)</label>
+          <input type="text" inputmode="decimal" data-key="mensualite" data-i="${i}" value="${item.mensualite||''}" placeholder="0">
+        </div>
+        <div class="field">
+          <label>Taux (%)</label>
+          <input type="text" inputmode="decimal" data-key="taux" data-i="${i}" value="${item.taux||''}" placeholder="0.00">
+        </div>
+      </div>`
+  });
+}
+document.getElementById('btn-add-emprunt').addEventListener('click', ()=>{
+  state.emprunts.push({ nom:'', crd:'', mensualite:'', taux:'' });
+  save(); renderEmprunts();
+});
+
+/* ===================== CARTES DIFFERE ===================== */
+function renderCartes(){
+  renderSimpleList('cartes-list', state.cartes, {
+    labelPrefix: 'Carte',
+    nomLabel: 'Nom de la carte / banque',
+    nomPlaceholder: 'Ex. Visa Premier — débit différé',
+    valLabel: 'Encours à débiter (€)',
+    valKey: 'encours'
+  });
+}
+document.getElementById('btn-add-carte').addEventListener('click', ()=>{
+  state.cartes.push({ nom:'', encours:'' });
+  save(); renderCartes();
+});
+
+/* ===================== SYNTHESE ===================== */
+function renderSynthese(){
+  const totalImmo = sumBy(state.immobilier, 'valeur');
+  const totalMobilier = state.titres.reduce((a,t)=> a + sumBy(t.lignes, 'valeur'), 0);
+  const totalAV = sumBy(state.av, 'valeur');
+  const totalPEL = sumBy(state.pel, 'valeur');
+  const totalObligations = sumBy(state.obligations, 'valeur');
+  const totalTreso = sumBy(state.tresorerie, 'valeur');
+  const totalActif = totalImmo + totalMobilier + totalAV + totalPEL + totalObligations + totalTreso;
+
+  const totalEmprunts = sumBy(state.emprunts, 'crd');
+  const totalCartes = sumBy(state.cartes, 'encours');
+  const totalPassif = totalEmprunts + totalCartes;
+
+  const net = totalActif - totalPassif;
+
+  document.getElementById('s-actif').textContent = fmt(totalActif);
+  document.getElementById('s-passif').textContent = fmt(totalPassif);
+  document.getElementById('s-net').textContent = fmt(net);
+  document.getElementById('s-net-sub').textContent = totalActif>0 ? `Ratio d'endettement : ${totalActif>0?Math.round(totalPassif/totalActif*100):0}%` : "Actif − Passif";
+
+  const sum = totalActif + totalPassif;
+  const pctA = sum>0 ? Math.round(totalActif/sum*100) : 50;
+  const pctP = 100 - pctA;
+  document.getElementById('bal-a').style.width = pctA + '%';
+  document.getElementById('bal-p').style.width = pctP + '%';
+  document.getElementById('bal-a-pct').textContent = pctA + '%';
+  document.getElementById('bal-p-pct').textContent = pctP + '%';
+
+  const actifRows = [
+    ['Immobilier', totalImmo, '#4ade80'],
+    ['Valeurs mobilières', totalMobilier, '#60a5fa'],
+    ['Assurance vie', totalAV, '#e6c07f'],
+    ['PEL', totalPEL, '#c084fc'],
+    ['Obligations', totalObligations, '#f472b6'],
+    ['Trésorerie', totalTreso, '#2dd4bf'],
+  ];
+  const bA = document.getElementById('breakdown-actif');
+  bA.innerHTML = actifRows.map(r => breakdownRowHtml(r[0], r[1], r[2], false, totalActif)).join('')
+    + breakdownRowHtml('Total actif', totalActif, null, true, totalActif);
+
+  const passifRows = [
+    ['Emprunts (capital restant dû)', totalEmprunts, '#f87171'],
+    ['Cartes à débit différé', totalCartes, '#fb923c'],
+  ];
+  const bP = document.getElementById('breakdown-passif');
+  bP.innerHTML = passifRows.map(r => breakdownRowHtml(r[0], r[1], r[2], false, totalPassif)).join('')
+    + breakdownRowHtml('Total passif', totalPassif, null, true, totalPassif);
+
+  // Plus-values / moins-values latentes (valeurs mobilières uniquement, pour info)
+  const pvLines = [];
+  state.titres.forEach((titre, ti)=>{
+    const titreNom = titre.nom && titre.nom.trim() ? titre.nom.trim() : `Titre ${ti+1}`;
+    titre.lignes.forEach(ligne=>{
+      const info = ecartInfo(ligne);
+      if(info){
+        const ligneNom = ligne.nom && ligne.nom.trim() ? ligne.nom.trim() : 'Sans nom';
+        pvLines.push({ name: `${titreNom} — ${ligneNom}`, ecart: info.ecart, pct: info.pct });
+      }
+    });
+  });
+  const totalPV = pvLines.reduce((a,l)=> a + l.ecart, 0);
+  const pvTotalEl = document.getElementById('pv-total');
+  pvTotalEl.textContent = (totalPV > 0 ? '+' : '') + fmt(totalPV);
+  pvTotalEl.style.color = totalPV > 0 ? 'var(--green)' : (totalPV < 0 ? 'var(--red)' : 'var(--txt)');
+
+  const bPV = document.getElementById('breakdown-pv');
+  if(pvLines.length === 0){
+    bPV.innerHTML = `<div class="empty-note">Renseigne un "Coût d'achat" sur tes lignes de valeurs mobilières pour activer ce suivi.</div>`;
+  } else {
+    bPV.innerHTML = pvLines.map(l => pvRowHtml(l.name, l.ecart, l.pct)).join('');
+  }
+}
+function pvRowHtml(name, ecart, pct){
+  const color = ecart > 0 ? 'var(--green)' : (ecart < 0 ? 'var(--red)' : 'var(--mut)');
+  const dot = ecart > 0 ? '#4ade80' : (ecart < 0 ? '#f87171' : '#8996b3');
+  const sign = ecart > 0 ? '+' : '';
+  return `<div class="breakdown-row">
+    <span class="name"><span class="dot" style="background:${dot}"></span>${escapeHtml(name)}</span>
+    <span class="amt-wrap">
+      <span class="amt" style="color:${color}">${sign}${fmt(ecart)}</span>
+      <span class="pct">${sign}${pct.toFixed(1)}%</span>
+    </span>
+  </div>`;
+}
+function breakdownRowHtml(name, amt, color, total, base){
+  const pct = base > 0 ? Math.round(amt / base * 100) : 0;
+  return `<div class="breakdown-row ${total?'total':''}">
+    <span class="name">${color?`<span class="dot" style="background:${color}"></span>`:''}${name}</span>
+    <span class="amt-wrap">
+      <span class="amt">${fmt(amt)}</span>
+      ${!total ? `<span class="pct">${pct}%</span>` : ''}
+    </span>
+  </div>`;
+}
+
+/* ===================== Reset ===================== */
+document.getElementById('btn-reset').addEventListener('click', ()=>{
+  if(!confirm('Effacer toutes les données du bilan patrimonial ? Cette action est irréversible.')) return;
+  state = defaultState();
+  save();
+  renderAll();
+});
+
+/* ===================== Render all ===================== */
+function renderAll(){
+  renderImmobilier();
+  renderMobilier();
+  renderAV();
+  renderPEL();
+  renderObligations();
+  renderTresorerie();
+  renderEmprunts();
+  renderCartes();
+  renderSynthese();
+}
+renderAll();
+
+/* ===================== PWA Service Worker + mise à jour ===================== */
+if('serviceWorker' in navigator){
+  let refreshing = false;
+  let waitingWorker = null;
+
+  navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+    if(refreshing) return;
+    refreshing = true;
+    window.location.reload();
+  });
+
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').then(reg=>{
+      // Un SW était déjà en attente avant même le chargement de cette page
+      if(reg.waiting){ waitingWorker = reg.waiting; showUpdateBanner(); }
+
+      reg.addEventListener('updatefound', ()=>{
+        const newWorker = reg.installing;
+        if(!newWorker) return;
+        newWorker.addEventListener('statechange', ()=>{
+          // "installed" + un controller existant déjà = vraie mise à jour (pas la 1ère installation)
+          if(newWorker.state === 'installed' && navigator.serviceWorker.controller){
+            waitingWorker = newWorker;
+            showUpdateBanner();
+          }
+        });
+      });
+
+      // Revérifie s'il existe une version plus récente à chaque retour sur l'app
+      document.addEventListener('visibilitychange', ()=>{
+        if(document.visibilityState === 'visible') reg.update().catch(()=>{});
+      });
+    }).catch(()=>{});
+  });
+
+  function showUpdateBanner(){
+    document.getElementById('update-banner').classList.add('show');
+  }
+  document.getElementById('btn-update-now').addEventListener('click', ()=>{
+    if(waitingWorker) waitingWorker.postMessage('SKIP_WAITING');
+    document.getElementById('update-banner').classList.remove('show');
+  });
+  document.getElementById('btn-update-later').addEventListener('click', ()=>{
+    document.getElementById('update-banner').classList.remove('show');
+  });
+}
+</script>
+</body>
+</html>
