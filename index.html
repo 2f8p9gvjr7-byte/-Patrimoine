@@ -121,6 +121,26 @@ body{padding-bottom:40px}
 .org-total-band .l{color:var(--amber);font-size:12px;letter-spacing:.4px;text-transform:uppercase}
 .org-total-band .v{color:var(--txt);font-size:16px}
 
+/* Historique */
+.spark-card{background:var(--pan);border:1px solid var(--bor);border-radius:12px;padding:14px;margin-bottom:14px}
+.spark-svg{width:100%;height:70px;display:block}
+.spark-empty{font-size:12px;color:var(--mut);text-align:center;padding:10px}
+.snap-card{background:var(--pan);border:1px solid var(--bor);border-radius:12px;padding:13px;margin-bottom:10px}
+.snap-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.snap-date{font-size:12.5px;font-weight:800;color:var(--amber)}
+.snap-ago{font-size:10.5px;color:var(--mut);margin-left:6px;font-weight:600}
+.snap-del{width:24px;height:24px;background:var(--red-dim);border:1px solid #5a3232;color:#f2c6c6;border-radius:6px;font-size:12px;font-weight:800;-webkit-appearance:none}
+.snap-net{font-size:19px;font-weight:800;color:var(--txt);margin-bottom:6px}
+.snap-delta{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.snap-delta .arrow{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex:0 0 auto}
+.snap-delta .arrow.up{background:var(--green-dim);color:var(--green)}
+.snap-delta .arrow.down{background:var(--red-dim);color:var(--red)}
+.snap-delta .arrow.flat{background:var(--bor);color:var(--mut)}
+.snap-delta .txt{font-size:13px;font-weight:700}
+.snap-delta .txt small{display:block;font-size:10.5px;font-weight:600;color:var(--mut)}
+.snap-sub{display:flex;justify-content:space-between;font-size:11.5px;color:var(--sub);border-top:1px solid var(--bor);padding-top:7px}
+.snap-sub span b{font-weight:700}
+
 .print-only{display:none}
 @media print{
   body{background:#fff !important;color:#111 !important;padding:0}
@@ -273,10 +293,12 @@ body{padding-bottom:40px}
   <div class="tab" data-view="pel"><span class="n">5</span>PEL</div>
   <div class="tab" data-view="obligations"><span class="n">6</span>Obligations</div>
   <div class="tab" data-view="livrets"><span class="n">7</span>Livrets</div>
-  <div class="tab" data-view="tresorerie"><span class="n">8</span>Trésorerie</div>
-  <div class="tab" data-view="emprunts"><span class="n">9</span>Emprunts</div>
-  <div class="tab" data-view="cartes"><span class="n">10</span>Crédit court terme</div>
+  <div class="tab" data-view="or"><span class="n">8</span>Or et métaux</div>
+  <div class="tab" data-view="tresorerie"><span class="n">9</span>Trésorerie</div>
+  <div class="tab" data-view="emprunts"><span class="n">10</span>Emprunts</div>
+  <div class="tab" data-view="cartes"><span class="n">11</span>Crédit court terme</div>
   <div class="tab" data-view="organisme"><span class="n">🏦</span>Par organisme</div>
+  <div class="tab" data-view="historique"><span class="n">📈</span>Historique</div>
 </div>
 
 <div id="content">
@@ -373,6 +395,13 @@ body{padding-bottom:40px}
     <button class="btn-add" id="btn-add-livret">+ Ajouter un livret</button>
   </div>
 
+  <!-- OR ET METAUX PRECIEUX -->
+  <div class="view" id="view-or">
+    <div class="hint">Jusqu'à 10 lignes — pièces, lingots, ETF or/argent, coffre personnel ou en banque.</div>
+    <div id="or-list"></div>
+    <button class="btn-add" id="btn-add-or">+ Ajouter une ligne</button>
+  </div>
+
   <!-- TRESORERIE -->
   <div class="view" id="view-tresorerie">
     <div class="hint">Comptes courants, disponibilités immédiates.</div>
@@ -411,6 +440,16 @@ body{padding-bottom:40px}
     <div id="organisme-passif-list"></div>
   </div>
 
+  <!-- HISTORIQUE -->
+  <div class="view" id="view-historique">
+    <div class="hint">Enregistre un instantané de ton patrimoine à intervalles réguliers pour suivre son évolution dans le temps.</div>
+    <button class="btn-add" id="btn-add-snapshot" style="border-style:solid">📸 Enregistrer un instantané aujourd'hui</button>
+    <div class="section-title">Évolution</div>
+    <div id="historique-sparkline"></div>
+    <div class="section-title">Instantanés</div>
+    <div id="historique-list"></div>
+  </div>
+
 </div>
 
 <div class="savebar"><span class="dot"></span>Enregistré automatiquement sur cet appareil</div>
@@ -433,6 +472,7 @@ const MAX_LIGNES = 20;
 const MAX_AV = 20;
 const MAX_OBLIG = 20;
 const MAX_LIVRETS = 10;
+const MAX_OR = 10;
 
 function defaultState(){
   return {
@@ -443,9 +483,11 @@ function defaultState(){
     pel: [],
     obligations: [],
     livrets: [],
+    or: [],
     tresorerie: [],
     emprunts: [],
-    cartes: []
+    cartes: [],
+    historique: []
   };
 }
 
@@ -768,6 +810,24 @@ document.getElementById('btn-add-livret').addEventListener('click', ()=>{
   save(); renderLivrets();
 });
 
+/* ===================== OR ET METAUX PRECIEUX ===================== */
+function renderOr(){
+  renderSimpleList('or-list', state.or, {
+    labelPrefix: 'Ligne',
+    withOrganisme: true,
+    organismePlaceholder: 'Ex. Coffre personnel, Banque X…',
+    nomLabel: 'Désignation',
+    nomPlaceholder: 'Ex. Pièces Napoléon, lingot 100g, ETF Or…',
+    valLabel: 'Valeur estimée (€)'
+  });
+  document.getElementById('btn-add-or').disabled = state.or.length >= MAX_OR;
+}
+document.getElementById('btn-add-or').addEventListener('click', ()=>{
+  if(state.or.length >= MAX_OR) return;
+  state.or.push({ organisme:'', nom:'', valeur:'' });
+  save(); renderOr();
+});
+
 /* ===================== TRESORERIE ===================== */
 function renderTresorerie(){
   renderSimpleList('tresorerie-list', state.tresorerie, {
@@ -830,7 +890,7 @@ document.getElementById('btn-add-carte').addEventListener('click', ()=>{
 });
 
 /* ===================== SYNTHESE ===================== */
-function renderSynthese(){
+function computeTotals(){
   const totalImmo = sumBy(state.immobilier, 'valeur');
   const totalVehicules = sumBy(state.vehicules, 'valeur');
   const totalMobilier = state.titres.reduce((a,t)=> a + sumBy(t.lignes, 'valeur'), 0);
@@ -838,14 +898,22 @@ function renderSynthese(){
   const totalPEL = sumBy(state.pel, 'valeur');
   const totalObligations = sumBy(state.obligations, 'valeur');
   const totalLivrets = sumBy(state.livrets, 'valeur');
+  const totalOr = sumBy(state.or, 'valeur');
   const totalTreso = sumBy(state.tresorerie, 'valeur');
-  const totalActif = totalImmo + totalVehicules + totalMobilier + totalAV + totalPEL + totalObligations + totalLivrets + totalTreso;
+  const totalActif = totalImmo + totalVehicules + totalMobilier + totalAV + totalPEL + totalObligations + totalLivrets + totalOr + totalTreso;
 
   const totalEmprunts = sumBy(state.emprunts, 'crd');
   const totalCartes = sumBy(state.cartes, 'encours');
   const totalPassif = totalEmprunts + totalCartes;
 
   const net = totalActif - totalPassif;
+
+  return { totalImmo, totalVehicules, totalMobilier, totalAV, totalPEL, totalObligations, totalLivrets, totalOr, totalTreso, totalActif, totalEmprunts, totalCartes, totalPassif, net };
+}
+
+function renderSynthese(){
+  const t = computeTotals();
+  const { totalImmo, totalVehicules, totalMobilier, totalAV, totalPEL, totalObligations, totalLivrets, totalOr, totalTreso, totalActif, totalEmprunts, totalCartes, totalPassif, net } = t;
 
   document.getElementById('s-actif').textContent = fmt(totalActif);
   document.getElementById('s-passif').textContent = fmt(totalPassif);
@@ -868,6 +936,7 @@ function renderSynthese(){
     ['PEL', totalPEL, '#c084fc'],
     ['Obligations', totalObligations, '#f472b6'],
     ['Livrets', totalLivrets, '#38bdf8'],
+    ['Or et métaux précieux', totalOr, '#fbbf24'],
     ['Trésorerie', totalTreso, '#2dd4bf'],
   ];
   const bA = document.getElementById('breakdown-actif');
@@ -938,6 +1007,7 @@ function collectFinancialLines(kind){
       [state.pel, 'PEL', 'valeur'],
       [state.obligations, 'Obligations', 'valeur'],
       [state.livrets, 'Livrets', 'valeur'],
+      [state.or, 'Or et métaux précieux', 'valeur'],
       [state.tresorerie, 'Trésorerie', 'valeur'],
     ];
     simple.forEach(([arr, cat, key])=>{
@@ -1023,6 +1093,119 @@ document.getElementById('btn-print-organisme').addEventListener('click', ()=>{
   document.getElementById('view-organisme').classList.add('active');
   setTimeout(()=> window.print(), 50);
 });
+
+/* ===================== HISTORIQUE ===================== */
+function shortDateFR(iso){
+  return new Date(iso).toLocaleDateString('fr-FR', { day:'numeric', month:'short', year:'numeric' });
+}
+function timeAgo(date){
+  const diffDays = Math.round((new Date() - date) / 86400000);
+  if(diffDays <= 0) return "aujourd'hui";
+  if(diffDays === 1) return "il y a 1 j.";
+  if(diffDays < 30) return `il y a ${diffDays} j.`;
+  const diffMonths = Math.round(diffDays/30);
+  if(diffMonths < 12) return `il y a ${diffMonths} m.`;
+  const diffYears = Math.round(diffMonths/12);
+  return `il y a ${diffYears} an${diffYears>1?'s':''}`;
+}
+
+function renderHistorique(){
+  const sparkEl = document.getElementById('historique-sparkline');
+  const listEl = document.getElementById('historique-list');
+  if(!sparkEl || !listEl) return;
+
+  const snaps = state.historique;
+  if(snaps.length === 0){
+    sparkEl.innerHTML = '<div class="spark-card"><div class="spark-empty">Aucun instantané pour l\'instant.</div></div>';
+    listEl.innerHTML = '<div class="empty-note">Enregistre ton premier instantané pour démarrer le suivi.</div>';
+    return;
+  }
+
+  const sortedAsc = [...snaps].sort((a,b)=> new Date(a.date) - new Date(b.date));
+
+  if(sortedAsc.length < 2){
+    sparkEl.innerHTML = '<div class="spark-card"><div class="spark-empty">Ajoute un second instantané pour voir la tendance.</div></div>';
+  } else {
+    const nets = sortedAsc.map(s=>s.net);
+    const min = Math.min(...nets), max = Math.max(...nets);
+    const range = (max - min) || 1;
+    const W = 300, H = 60, PAD = 6;
+    const pts = nets.map((v,i)=>{
+      const x = PAD + (i/(nets.length-1)) * (W - PAD*2);
+      const y = PAD + (1 - (v-min)/range) * (H - PAD*2);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    });
+    const color = nets[nets.length-1] >= nets[0] ? '#4ade80' : '#f87171';
+    sparkEl.innerHTML = `<div class="spark-card">
+      <svg class="spark-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+        <polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+      </svg>
+    </div>`;
+  }
+
+  let html = '';
+  for(let i = sortedAsc.length - 1; i >= 0; i--){
+    const snap = sortedAsc[i];
+    const prev = i > 0 ? sortedAsc[i-1] : null;
+    const d = new Date(snap.date);
+    const dateStr = d.toLocaleDateString('fr-FR', { day:'numeric', month:'short', year:'numeric' });
+    const agoStr = timeAgo(d);
+    const realIndex = state.historique.indexOf(snap);
+
+    let deltaHtml;
+    if(prev){
+      const deltaNet = snap.net - prev.net;
+      const deltaPct = prev.net !== 0 ? (deltaNet/Math.abs(prev.net)*100) : 0;
+      const deltaActif = snap.actif - prev.actif;
+      const deltaPassif = snap.passif - prev.passif;
+      const dir = deltaNet > 0 ? 'up' : (deltaNet < 0 ? 'down' : 'flat');
+      const arrow = deltaNet > 0 ? '↑' : (deltaNet < 0 ? '↓' : '→');
+      const sign = deltaNet > 0 ? '+' : '';
+      deltaHtml = `
+        <div class="snap-delta">
+          <span class="arrow ${dir}">${arrow}</span>
+          <span class="txt">${sign}${fmt(deltaNet)}<small>${sign}${deltaPct.toFixed(1)}% depuis le ${shortDateFR(prev.date)}</small></span>
+        </div>
+        <div class="snap-sub">
+          <span>Actifs <b style="color:${deltaActif>=0?'var(--green)':'var(--red)'}">${deltaActif>=0?'+':''}${fmt(deltaActif)}</b></span>
+          <span>Passifs <b style="color:${deltaPassif>=0?'var(--red)':'var(--green)'}">${deltaPassif>=0?'+':''}${fmt(deltaPassif)}</b></span>
+        </div>`;
+    } else {
+      deltaHtml = `<div class="snap-delta"><span class="arrow flat">•</span><span class="txt">Premier instantané enregistré</span></div>`;
+    }
+
+    html += `<div class="snap-card">
+      <div class="snap-head">
+        <span><span class="snap-date">${dateStr}</span><span class="snap-ago">${agoStr}</span></span>
+        <button class="snap-del" data-idx="${realIndex}">✕</button>
+      </div>
+      <div class="snap-net">${fmt(snap.net)}</div>
+      ${deltaHtml}
+    </div>`;
+  }
+  listEl.innerHTML = html;
+
+  listEl.querySelectorAll('.snap-del').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      state.historique.splice(+btn.dataset.idx, 1);
+      save(); renderHistorique();
+    });
+  });
+}
+
+document.getElementById('btn-add-snapshot').addEventListener('click', ()=>{
+  const t = computeTotals();
+  const today = new Date();
+  today.setHours(12,0,0,0);
+  const todayIso = today.toISOString();
+  const todayDateOnly = todayIso.slice(0,10);
+  const snap = { date: todayIso, actif: t.totalActif, passif: t.totalPassif, net: t.net };
+  const existingIdx = state.historique.findIndex(s => s.date.slice(0,10) === todayDateOnly);
+  if(existingIdx >= 0){ state.historique[existingIdx] = snap; }
+  else { state.historique.push(snap); }
+  save(); renderHistorique();
+});
+
 function buildDonut(rows, total){
   const el = document.getElementById('donut-actif');
   const totalEl = document.getElementById('donut-total');
@@ -1073,11 +1256,13 @@ function renderAll(){
   renderPEL();
   renderObligations();
   renderLivrets();
+  renderOr();
   renderTresorerie();
   renderEmprunts();
   renderCartes();
   renderSynthese();
   renderParOrganisme();
+  renderHistorique();
 }
 renderAll();
 
