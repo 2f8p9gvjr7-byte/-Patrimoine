@@ -313,7 +313,11 @@ body{padding-bottom:40px}
       <div class="kpi passif">
         <div class="lbl">Total passif</div>
         <div class="val" id="s-passif">0 €</div>
-        <div class="kpi-sub"><span>Dettes <b id="s-passif-dettes">0 €</b></span><span>Impôt latent <b id="s-passif-impot">0 €</b></span></div>
+        <div class="kpi-sub">
+          <span>Emprunts <b id="s-passif-emprunts">0 €</b></span>
+          <span>Crédit court terme <b id="s-passif-cartes">0 €</b></span>
+          <span>Impôt latent <b id="s-passif-impot">0 €</b></span>
+        </div>
       </div>
     </div>
     <div class="kpi-net">
@@ -1021,6 +1025,9 @@ function renderSynthese(){
 
   document.getElementById('s-actif').textContent = fmt(totalActif);
   document.getElementById('s-passif').textContent = fmt(totalPassif);
+  document.getElementById('s-passif-emprunts').textContent = fmt(totalEmprunts);
+  document.getElementById('s-passif-cartes').textContent = fmt(totalCartes);
+  document.getElementById('s-passif-impot').textContent = fmt(impotLatent);
   document.getElementById('s-net').textContent = fmt(net);
   document.getElementById('s-net-sub').textContent = totalActif>0 ? `Ratio d'endettement : ${totalActif>0?Math.round(totalPassif/totalActif*100):0}%` : "Actif − Passif";
 
