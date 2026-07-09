@@ -78,6 +78,9 @@ body{padding-bottom:40px}
 .kpi .val{font-size:19px;font-weight:800;letter-spacing:.2px}
 .kpi.actif .val{color:var(--green)}
 .kpi.passif .val{color:var(--red)}
+.kpi-sub{display:flex;flex-direction:column;gap:2px;margin-top:6px;padding-top:6px;border-top:1px solid var(--bor)}
+.kpi-sub span{display:flex;justify-content:space-between;font-size:10px;color:var(--mut);font-weight:600}
+.kpi-sub span b{color:var(--sub);font-weight:700}
 .kpi-net{background:var(--pan2);border:1px solid var(--amber-dim);border-radius:12px;padding:16px;margin-bottom:16px;text-align:center}
 .kpi-net .lbl{font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--amber);margin-bottom:6px}
 .kpi-net .val{font-size:28px;font-weight:900;color:var(--txt)}
@@ -307,7 +310,11 @@ body{padding-bottom:40px}
   <div class="view active" id="view-synthese">
     <div class="kpi-row">
       <div class="kpi actif"><div class="lbl">Total actif</div><div class="val" id="s-actif">0 €</div></div>
-      <div class="kpi passif"><div class="lbl">Total passif</div><div class="val" id="s-passif">0 €</div></div>
+      <div class="kpi passif">
+        <div class="lbl">Total passif</div>
+        <div class="val" id="s-passif">0 €</div>
+        <div class="kpi-sub"><span>Dettes <b id="s-passif-dettes">0 €</b></span><span>Impôt latent <b id="s-passif-impot">0 €</b></span></div>
+      </div>
     </div>
     <div class="kpi-net">
       <div class="lbl">Patrimoine net</div>
@@ -339,7 +346,7 @@ body{padding-bottom:40px}
     <div class="breakdown" id="breakdown-passif"></div>
 
     <div class="section-title">Plus-values / moins-values latentes</div>
-    <div class="hint" style="margin-top:-4px">Pour information (valeurs mobilières) — n'affecte pas le total actif/passif ci-dessus.</div>
+    <div class="hint" style="margin-top:-4px">Détail brut par ligne, avant impôt. L'estimation d'impôt latent correspondante est comptée séparément dans le détail du passif ci-dessus (réglage des taux dans l'onglet Valeurs mobilières).</div>
     <div class="kpi-net" id="pv-total-wrap" style="padding:12px;margin-bottom:10px">
       <div class="lbl">Écart net latent</div>
       <div class="val" id="pv-total" style="font-size:20px">0 €</div>
@@ -364,6 +371,25 @@ body{padding-bottom:40px}
   <!-- VALEURS MOBILIERES -->
   <div class="view" id="view-mobilier">
     <div class="hint">10 titres (catégories) à nommer librement — ex. Actions, ETF, PEA, Livrets… Chaque titre contient jusqu'à 20 lignes.</div>
+
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-head"><span class="idx">Fiscalité des plus-values latentes</span></div>
+      <div class="row2">
+        <div class="field">
+          <label>Prélèvements sociaux (%)</label>
+          <input type="text" inputmode="decimal" id="fisc-ps">
+        </div>
+        <div class="field">
+          <label>Impôt / complément (%)</label>
+          <input type="text" inputmode="decimal" id="fisc-ir">
+        </div>
+      </div>
+      <div class="hint" style="margin:6px 2px 0">
+        Taux pour un titre "Compte-titres" : <b id="fisc-total" style="color:var(--txt)">31,4%</b> (18,6% de prélèvements sociaux, taux 2026 + 12,8% de flat tax, ou votre taux d'IR si vous optez pour le barème progressif).
+        Choisissez le régime de chaque titre ci-dessous : un <b>PEA/PEA-PME de plus de 5 ans</b> n'est taxé qu'aux prélèvements sociaux seuls. L'impôt n'est calculé que si la plus-value latente nette du titre est positive. Estimation simplifiée — Claude n'est pas conseiller fiscal, vérifiez votre situation avec un professionnel.
+      </div>
+    </div>
+
     <div id="mobilier-list"></div>
   </div>
 
@@ -478,7 +504,7 @@ function defaultState(){
   return {
     immobilier: [],
     vehicules: [],
-    titres: Array.from({length: MAX_TITRES}, () => ({ nom: '', lignes: [] })),
+    titres: Array.from({length: MAX_TITRES}, () => ({ nom: '', regime: 'cto', lignes: [] })),
     av: [],
     pel: [],
     obligations: [],
@@ -487,7 +513,8 @@ function defaultState(){
     tresorerie: [],
     emprunts: [],
     cartes: [],
-    historique: []
+    historique: [],
+    fiscalite: { ps: 18.6, ir: 12.8 }
   };
 }
 
@@ -657,6 +684,42 @@ function ecartInfo(ligne){
   const pct = cout !== 0 ? (ecart/cout*100) : 0;
   return { ecart, pct };
 }
+function totalPlusValueLatenteNette(){
+  let total = 0;
+  state.titres.forEach(t => t.lignes.forEach(l => {
+    const info = ecartInfo(l);
+    if(info) total += info.ecart;
+  }));
+  return total;
+}
+function regimeLabel(regime){
+  if(regime === 'pea5') return 'PEA >5 ans';
+  if(regime === 'exonere') return 'Exonéré';
+  return 'CTO';
+}
+function computeImpotLatent(){
+  let totalPVLatente = 0;
+  let impotLatentCTO = 0;
+  let impotLatentPEA = 0;
+  const psRate = num(state.fiscalite.ps) / 100;
+  const irRate = num(state.fiscalite.ir) / 100;
+  state.titres.forEach(t=>{
+    let pvTitre = 0;
+    t.lignes.forEach(l=>{
+      const info = ecartInfo(l);
+      if(info) pvTitre += info.ecart;
+    });
+    totalPVLatente += pvTitre;
+    if(pvTitre > 0){
+      const regime = t.regime || 'cto';
+      if(regime === 'cto') impotLatentCTO += pvTitre * (psRate + irRate);
+      else if(regime === 'pea5') impotLatentPEA += pvTitre * psRate;
+      // 'exonere' -> rien
+    }
+  });
+  const impotLatent = impotLatentCTO + impotLatentPEA;
+  return { totalPVLatente, impotLatentCTO, impotLatentPEA, impotLatent };
+}
 function ecartBadgeHtml(info){
   if(!info) return `<span class="ecart ecart-neutre">—</span>`;
   const cls = info.ecart > 0 ? 'ecart-plus' : (info.ecart < 0 ? 'ecart-moins' : 'ecart-neutre');
@@ -676,6 +739,14 @@ function renderMobilier(){
         <span class="n">${ti+1}</span>
         <input type="text" data-titre="${ti}" value="${escapeHtml(titre.nom||'')}" placeholder="Nom du titre (ex. Actions, ETF, PEA…)">
         <span class="total">${fmt(total)}</span>
+      </div>
+      <div class="field" style="margin-bottom:10px">
+        <label>Régime fiscal (pour l'impôt latent estimé)</label>
+        <select data-titre-regime="${ti}">
+          <option value="cto" ${(titre.regime||'cto')==='cto'?'selected':''}>Compte-titres / imposable en totalité</option>
+          <option value="pea5" ${titre.regime==='pea5'?'selected':''}>PEA / PEA-PME &gt; 5 ans (prélèvements sociaux seuls)</option>
+          <option value="exonere" ${titre.regime==='exonere'?'selected':''}>Exonéré (0%)</option>
+        </select>
       </div>
       <div class="lignes" data-titre-lignes="${ti}"></div>
       <button class="btn-add-ligne" data-titre-add="${ti}" ${titre.lignes.length>=MAX_LIGNES?'disabled':''}>+ Ajouter une ligne (${titre.lignes.length}/${MAX_LIGNES})</button>
@@ -704,6 +775,12 @@ function renderMobilier(){
   c.querySelectorAll('[data-titre]').forEach(inp=>{
     inp.addEventListener('input', ()=>{
       state.titres[+inp.dataset.titre].nom = inp.value;
+      save();
+    });
+  });
+  c.querySelectorAll('[data-titre-regime]').forEach(sel=>{
+    sel.addEventListener('change', ()=>{
+      state.titres[+sel.dataset.titreRegime].regime = sel.value;
       save();
     });
   });
@@ -739,6 +816,30 @@ function renderMobilier(){
     });
   });
 }
+
+/* ===================== FISCALITE PLUS-VALUES ===================== */
+function updateFiscTotalDisplay(){
+  const total = num(document.getElementById('fisc-ps').value) + num(document.getElementById('fisc-ir').value);
+  document.getElementById('fisc-total').textContent = total.toLocaleString('fr-FR', { minimumFractionDigits:1, maximumFractionDigits:1 }) + '%';
+}
+function syncFiscaliteInputs(){
+  const psEl = document.getElementById('fisc-ps');
+  const irEl = document.getElementById('fisc-ir');
+  if(!psEl) return;
+  psEl.value = state.fiscalite.ps;
+  irEl.value = state.fiscalite.ir;
+  updateFiscTotalDisplay();
+}
+document.getElementById('fisc-ps').addEventListener('input', ()=>{
+  state.fiscalite.ps = document.getElementById('fisc-ps').value;
+  updateFiscTotalDisplay();
+  save();
+});
+document.getElementById('fisc-ir').addEventListener('input', ()=>{
+  state.fiscalite.ir = document.getElementById('fisc-ir').value;
+  updateFiscTotalDisplay();
+  save();
+});
 
 /* ===================== ASSURANCE VIE ===================== */
 function renderAV(){
@@ -904,16 +1005,19 @@ function computeTotals(){
 
   const totalEmprunts = sumBy(state.emprunts, 'crd');
   const totalCartes = sumBy(state.cartes, 'encours');
-  const totalPassif = totalEmprunts + totalCartes;
+
+  const { totalPVLatente, impotLatentCTO, impotLatentPEA, impotLatent } = computeImpotLatent();
+
+  const totalPassif = totalEmprunts + totalCartes + impotLatent;
 
   const net = totalActif - totalPassif;
 
-  return { totalImmo, totalVehicules, totalMobilier, totalAV, totalPEL, totalObligations, totalLivrets, totalOr, totalTreso, totalActif, totalEmprunts, totalCartes, totalPassif, net };
+  return { totalImmo, totalVehicules, totalMobilier, totalAV, totalPEL, totalObligations, totalLivrets, totalOr, totalTreso, totalActif, totalEmprunts, totalCartes, totalPVLatente, impotLatentCTO, impotLatentPEA, impotLatent, totalPassif, net };
 }
 
 function renderSynthese(){
   const t = computeTotals();
-  const { totalImmo, totalVehicules, totalMobilier, totalAV, totalPEL, totalObligations, totalLivrets, totalOr, totalTreso, totalActif, totalEmprunts, totalCartes, totalPassif, net } = t;
+  const { totalImmo, totalVehicules, totalMobilier, totalAV, totalPEL, totalObligations, totalLivrets, totalOr, totalTreso, totalActif, totalEmprunts, totalCartes, totalPVLatente, impotLatentCTO, impotLatentPEA, impotLatent, totalPassif, net } = t;
 
   document.getElementById('s-actif').textContent = fmt(totalActif);
   document.getElementById('s-passif').textContent = fmt(totalPassif);
@@ -948,6 +1052,8 @@ function renderSynthese(){
   const passifRows = [
     ['Emprunts (capital restant dû)', totalEmprunts, '#f87171'],
     ['Crédit à court terme', totalCartes, '#fb923c'],
+    ['Impôt latent PV — Compte-titres', impotLatentCTO, '#a78bfa'],
+    ['Impôt latent PV — PEA (prélèvements sociaux)', impotLatentPEA, '#8b7bd8'],
   ];
   const bP = document.getElementById('breakdown-passif');
   bP.innerHTML = passifRows.map(r => breakdownRowHtml(r[0], r[1], r[2], false, totalPassif)).join('')
@@ -961,7 +1067,7 @@ function renderSynthese(){
       const info = ecartInfo(ligne);
       if(info){
         const ligneNom = ligne.nom && ligne.nom.trim() ? ligne.nom.trim() : 'Sans nom';
-        pvLines.push({ name: `${titreNom} — ${ligneNom}`, ecart: info.ecart, pct: info.pct });
+        pvLines.push({ name: `${titreNom} (${regimeLabel(titre.regime)}) — ${ligneNom}`, ecart: info.ecart, pct: info.pct });
       }
     });
   });
@@ -1252,6 +1358,7 @@ function renderAll(){
   renderImmobilier();
   renderVehicules();
   renderMobilier();
+  syncFiscaliteInputs();
   renderAV();
   renderPEL();
   renderObligations();
