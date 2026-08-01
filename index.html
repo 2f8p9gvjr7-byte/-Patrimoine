@@ -400,6 +400,49 @@ body{padding-bottom:40px}
   <!-- ASSURANCE VIE -->
   <div class="view" id="view-av">
     <div class="hint">Jusqu'à 20 contrats d'assurance vie.</div>
+
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-head"><span class="idx">Fiscalité des plus-values latentes (assurance vie)</span></div>
+      <div class="row2">
+        <div class="field">
+          <label>Prélèvements sociaux (%)</label>
+          <input type="text" inputmode="decimal" id="av-fisc-ps">
+        </div>
+        <div class="field">
+          <label>Situation</label>
+          <select id="av-fisc-situation">
+            <option value="seul">Personne seule</option>
+            <option value="couple">Couple (marié/pacsé)</option>
+          </select>
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>IR si &lt; 8 ans (%)</label>
+          <input type="text" inputmode="decimal" id="av-fisc-moins8">
+        </div>
+        <div class="field">
+          <label>IR si &gt; 8 ans, sous seuil (%)</label>
+          <input type="text" inputmode="decimal" id="av-fisc-plus8bas">
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>IR si &gt; 8 ans, au-dessus seuil (%)</label>
+          <input type="text" inputmode="decimal" id="av-fisc-plus8haut">
+        </div>
+        <div class="field">
+          <label>Seuil de versements (€)</label>
+          <input type="text" inputmode="decimal" id="av-fisc-seuil">
+        </div>
+      </div>
+      <div class="hint" style="margin:6px 2px 0">
+        Abattement annuel appliqué (contrats &gt; 8 ans) : <b id="av-fisc-abattement" style="color:var(--txt)">4 600 €</b>.
+        Le seuil de versements cumulés (150 000€ par défaut) s'apprécie sur l'ensemble de vos contrats de plus de 8 ans réunis, dans l'ordre où ils sont saisis ci-dessous.
+        Prélèvements sociaux à 17,2% : l'assurance vie est explicitement exclue de la hausse 2026 (contrairement aux valeurs mobilières, à 18,6%). Estimation simplifiée — vérifiez avec un professionnel.
+      </div>
+    </div>
+
     <div id="av-list"></div>
     <button class="btn-add" id="btn-add-av">+ Ajouter un contrat</button>
   </div>
@@ -518,7 +561,8 @@ function defaultState(){
     emprunts: [],
     cartes: [],
     historique: [],
-    fiscalite: { ps: 18.6, ir: 12.8 }
+    fiscalite: { ps: 18.6, ir: 12.8 },
+    fiscaliteAV: { ps: 17.2, moins8: 12.8, plus8Bas: 7.5, plus8Haut: 12.8, seuil: 150000, situation: 'seul' }
   };
 }
 
@@ -724,6 +768,52 @@ function computeImpotLatent(){
   const impotLatent = impotLatentCTO + impotLatentPEA;
   return { totalPVLatente, impotLatentCTO, impotLatentPEA, impotLatent };
 }
+function computeImpotLatentAV(){
+  const ps = num(state.fiscaliteAV.ps) / 100;
+  const tauxMoins8 = num(state.fiscaliteAV.moins8) / 100;
+  const tauxPlus8Bas = num(state.fiscaliteAV.plus8Bas) / 100;
+  const tauxPlus8Haut = num(state.fiscaliteAV.plus8Haut) / 100;
+  const seuil = num(state.fiscaliteAV.seuil);
+  const abattement = (state.fiscaliteAV.situation === 'couple') ? 9200 : 4600;
+
+  let totalGainMoins8 = 0;
+  let totalGainBelowSeuil = 0;   // part des gains >8 ans liée à des versements sous le seuil
+  let totalGainAboveSeuil = 0;   // part des gains >8 ans liée à des versements au-dessus du seuil
+  let cumulVersementsPlus8 = 0;
+
+  state.av.forEach(item=>{
+    const info = avEcartInfo(item);
+    if(!info || info.ecart <= 0) return;
+    const versements = num(item.versements);
+    const gain = info.ecart;
+    if((item.regime||'moins8') === 'moins8'){
+      totalGainMoins8 += gain;
+    } else {
+      const belowAmount = Math.max(0, Math.min(versements, seuil - cumulVersementsPlus8));
+      const fracBelow = versements > 0 ? belowAmount / versements : 1;
+      totalGainBelowSeuil += gain * fracBelow;
+      totalGainAboveSeuil += gain * (1 - fracBelow);
+      cumulVersementsPlus8 += versements;
+    }
+  });
+
+  // Abattement imputé en priorité sur la part taxée au taux le plus favorable (sous le seuil)
+  const taxableBelow = Math.max(0, totalGainBelowSeuil - abattement);
+  const abattementRestant = Math.max(0, abattement - totalGainBelowSeuil);
+  const taxableAbove = Math.max(0, totalGainAboveSeuil - abattementRestant);
+
+  const totalGainPlus8 = totalGainBelowSeuil + totalGainAboveSeuil;
+
+  const impotLatentAVMoins8 = totalGainMoins8 * (ps + tauxMoins8);
+  const impotLatentAVPlus8 = (taxableBelow * tauxPlus8Bas) + (taxableAbove * tauxPlus8Haut) + (totalGainPlus8 * ps);
+
+  return {
+    totalGainAV: totalGainMoins8 + totalGainPlus8,
+    impotLatentAVMoins8,
+    impotLatentAVPlus8,
+    impotLatentAV: impotLatentAVMoins8 + impotLatentAVPlus8
+  };
+}
 function ecartBadgeHtml(info){
   if(!info) return `<span class="ecart ecart-neutre">—</span>`;
   const cls = info.ecart > 0 ? 'ecart-plus' : (info.ecart < 0 ? 'ecart-moins' : 'ecart-neutre');
@@ -845,21 +935,115 @@ document.getElementById('fisc-ir').addEventListener('input', ()=>{
   save();
 });
 
+/* ===================== FISCALITE ASSURANCE VIE ===================== */
+function updateFiscAVAbattementDisplay(){
+  const situation = document.getElementById('av-fisc-situation').value;
+  const abattement = situation === 'couple' ? 9200 : 4600;
+  document.getElementById('av-fisc-abattement').textContent = fmt(abattement);
+}
+function syncFiscaliteAVInputs(){
+  const el = document.getElementById('av-fisc-ps');
+  if(!el) return;
+  document.getElementById('av-fisc-ps').value = state.fiscaliteAV.ps;
+  document.getElementById('av-fisc-moins8').value = state.fiscaliteAV.moins8;
+  document.getElementById('av-fisc-plus8bas').value = state.fiscaliteAV.plus8Bas;
+  document.getElementById('av-fisc-plus8haut').value = state.fiscaliteAV.plus8Haut;
+  document.getElementById('av-fisc-seuil').value = state.fiscaliteAV.seuil;
+  document.getElementById('av-fisc-situation').value = state.fiscaliteAV.situation || 'seul';
+  updateFiscAVAbattementDisplay();
+}
+[['av-fisc-ps','ps'],['av-fisc-moins8','moins8'],['av-fisc-plus8bas','plus8Bas'],['av-fisc-plus8haut','plus8Haut'],['av-fisc-seuil','seuil']].forEach(([id,key])=>{
+  document.getElementById(id).addEventListener('input', ()=>{
+    state.fiscaliteAV[key] = document.getElementById(id).value;
+    save();
+  });
+});
+document.getElementById('av-fisc-situation').addEventListener('change', ()=>{
+  state.fiscaliteAV.situation = document.getElementById('av-fisc-situation').value;
+  updateFiscAVAbattementDisplay();
+  save();
+});
+
 /* ===================== ASSURANCE VIE ===================== */
+function avEcartInfo(item){
+  const valeur = num(item.valeur), versements = num(item.versements);
+  if(!item.versements || versements === 0) return null;
+  const ecart = valeur - versements;
+  const pct = versements !== 0 ? (ecart/versements*100) : 0;
+  return { ecart, pct };
+}
 function renderAV(){
-  renderSimpleList('av-list', state.av, {
-    labelPrefix: 'Contrat',
-    withOrganisme: true,
-    organismePlaceholder: 'Ex. Generali, Boursorama…',
-    nomLabel: 'Nom du contrat',
-    nomPlaceholder: 'Ex. Fonds euros, Multisupport…',
-    valLabel: 'Valeur de rachat (€)'
+  const c = document.getElementById('av-list');
+  c.innerHTML = '';
+  if(state.av.length === 0){
+    c.innerHTML = '<div class="empty-note">Aucune ligne pour l\'instant.</div>';
+  }
+  state.av.forEach((item, i)=>{
+    const info = avEcartInfo(item);
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="card-head">
+        <span class="idx">Contrat ${i+1}</span>
+        <button class="btn-del" data-i="${i}">✕</button>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>Organisme</label>
+          <input type="text" data-key="organisme" data-i="${i}" value="${escapeHtml(item.organisme||'')}" placeholder="Ex. Generali, Boursorama…">
+        </div>
+        <div class="field">
+          <label>Nom du contrat</label>
+          <input type="text" data-key="nom" data-i="${i}" value="${escapeHtml(item.nom||'')}" placeholder="Ex. Fonds euros, Multisupport…">
+        </div>
+      </div>
+      <div class="field">
+        <label>Régime (âge du contrat)</label>
+        <select data-key="regime" data-i="${i}">
+          <option value="moins8" ${(item.regime||'moins8')==='moins8'?'selected':''}>Moins de 8 ans</option>
+          <option value="plus8" ${item.regime==='plus8'?'selected':''}>Plus de 8 ans</option>
+        </select>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>Versements (€)</label>
+          <input type="text" inputmode="decimal" data-key="versements" data-i="${i}" value="${item.versements||''}" placeholder="0">
+        </div>
+        <div class="field">
+          <label>Valeur de rachat actuelle (€)</label>
+          <input type="text" inputmode="decimal" data-key="valeur" data-i="${i}" value="${item.valeur||''}" placeholder="0">
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <label>Écart</label>
+        ${ecartBadgeHtml(info)}
+      </div>
+    `;
+    c.appendChild(card);
+  });
+  c.querySelectorAll('input, select').forEach(inp=>{
+    const handler = ()=>{
+      const i = +inp.dataset.i, key = inp.dataset.key;
+      state.av[i][key] = inp.value;
+      save();
+      const info = avEcartInfo(state.av[i]);
+      const card = c.children[i];
+      if(card) card.querySelector('.ecart').outerHTML = ecartBadgeHtml(info);
+    };
+    inp.addEventListener('input', handler);
+    inp.addEventListener('change', handler);
+  });
+  c.querySelectorAll('.btn-del').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      state.av.splice(+btn.dataset.i, 1);
+      save(); renderAV();
+    });
   });
   document.getElementById('btn-add-av').disabled = state.av.length >= MAX_AV;
 }
 document.getElementById('btn-add-av').addEventListener('click', ()=>{
   if(state.av.length >= MAX_AV) return;
-  state.av.push({ organisme:'', nom:'', valeur:'' });
+  state.av.push({ organisme:'', nom:'', regime:'moins8', versements:'', valeur:'' });
   save(); renderAV();
 });
 
@@ -1011,23 +1195,24 @@ function computeTotals(){
   const totalCartes = sumBy(state.cartes, 'encours');
 
   const { totalPVLatente, impotLatentCTO, impotLatentPEA, impotLatent } = computeImpotLatent();
+  const { totalGainAV, impotLatentAVMoins8, impotLatentAVPlus8, impotLatentAV } = computeImpotLatentAV();
 
-  const totalPassif = totalEmprunts + totalCartes + impotLatent;
+  const totalPassif = totalEmprunts + totalCartes + impotLatent + impotLatentAV;
 
   const net = totalActif - totalPassif;
 
-  return { totalImmo, totalVehicules, totalMobilier, totalAV, totalPEL, totalObligations, totalLivrets, totalOr, totalTreso, totalActif, totalEmprunts, totalCartes, totalPVLatente, impotLatentCTO, impotLatentPEA, impotLatent, totalPassif, net };
+  return { totalImmo, totalVehicules, totalMobilier, totalAV, totalPEL, totalObligations, totalLivrets, totalOr, totalTreso, totalActif, totalEmprunts, totalCartes, totalPVLatente, impotLatentCTO, impotLatentPEA, impotLatent, totalGainAV, impotLatentAVMoins8, impotLatentAVPlus8, impotLatentAV, totalPassif, net };
 }
 
 function renderSynthese(){
   const t = computeTotals();
-  const { totalImmo, totalVehicules, totalMobilier, totalAV, totalPEL, totalObligations, totalLivrets, totalOr, totalTreso, totalActif, totalEmprunts, totalCartes, totalPVLatente, impotLatentCTO, impotLatentPEA, impotLatent, totalPassif, net } = t;
+  const { totalImmo, totalVehicules, totalMobilier, totalAV, totalPEL, totalObligations, totalLivrets, totalOr, totalTreso, totalActif, totalEmprunts, totalCartes, totalPVLatente, impotLatentCTO, impotLatentPEA, impotLatent, impotLatentAVMoins8, impotLatentAVPlus8, impotLatentAV, totalPassif, net } = t;
 
   document.getElementById('s-actif').textContent = fmt(totalActif);
   document.getElementById('s-passif').textContent = fmt(totalPassif);
   document.getElementById('s-passif-emprunts').textContent = fmt(totalEmprunts);
   document.getElementById('s-passif-cartes').textContent = fmt(totalCartes);
-  document.getElementById('s-passif-impot').textContent = fmt(impotLatent);
+  document.getElementById('s-passif-impot').textContent = fmt(impotLatent + impotLatentAV);
   document.getElementById('s-net').textContent = fmt(net);
   document.getElementById('s-net-sub').textContent = totalActif>0 ? `Ratio d'endettement : ${totalActif>0?Math.round(totalPassif/totalActif*100):0}%` : "Actif − Passif";
 
@@ -1061,6 +1246,8 @@ function renderSynthese(){
     ['Crédit à court terme', totalCartes, '#fb923c'],
     ['Impôt latent PV — Compte-titres', impotLatentCTO, '#a78bfa'],
     ['Impôt latent PV — PEA (prélèvements sociaux)', impotLatentPEA, '#8b7bd8'],
+    ['Impôt latent AV — moins de 8 ans', impotLatentAVMoins8, '#f0abfc'],
+    ['Impôt latent AV — plus de 8 ans', impotLatentAVPlus8, '#e879f9'],
   ];
   const bP = document.getElementById('breakdown-passif');
   bP.innerHTML = passifRows.map(r => breakdownRowHtml(r[0], r[1], r[2], false, totalPassif)).join('')
@@ -1367,6 +1554,7 @@ function renderAll(){
   renderMobilier();
   syncFiscaliteInputs();
   renderAV();
+  syncFiscaliteAVInputs();
   renderPEL();
   renderObligations();
   renderLivrets();
