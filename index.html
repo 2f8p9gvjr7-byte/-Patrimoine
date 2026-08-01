@@ -350,7 +350,7 @@ body{padding-bottom:40px}
     <div class="breakdown" id="breakdown-passif"></div>
 
     <div class="section-title">Plus-values / moins-values latentes</div>
-    <div class="hint" style="margin-top:-4px">Détail brut par ligne, avant impôt. L'estimation d'impôt latent correspondante est comptée séparément dans le détail du passif ci-dessus (réglage des taux dans l'onglet Valeurs mobilières).</div>
+    <div class="hint" style="margin-top:-4px">Détail brut par ligne (valeurs mobilières et assurance vie), avant impôt. L'estimation d'impôt latent correspondante est comptée séparément dans le détail du passif ci-dessus (réglages des taux dans les onglets Valeurs mobilières et Assurance vie).</div>
     <div class="kpi-net" id="pv-total-wrap" style="padding:12px;margin-bottom:10px">
       <div class="lbl">Écart net latent</div>
       <div class="val" id="pv-total" style="font-size:20px">0 €</div>
@@ -574,7 +574,12 @@ function load(){
     if(!raw) return defaultState();
     const parsed = JSON.parse(raw);
     const d = defaultState();
-    return Object.assign(d, parsed);
+    const merged = Object.assign(d, parsed);
+    // Fusion profonde pour les objets de réglages fiscaux : un objet sauvegardé
+    // incomplet ne doit jamais faire disparaître un taux par défaut (=> 0% silencieux).
+    merged.fiscalite = Object.assign({}, defaultState().fiscalite, parsed.fiscalite || {});
+    merged.fiscaliteAV = Object.assign({}, defaultState().fiscaliteAV, parsed.fiscaliteAV || {});
+    return merged;
   }catch(e){ return defaultState(); }
 }
 
@@ -1253,7 +1258,7 @@ function renderSynthese(){
   bP.innerHTML = passifRows.map(r => breakdownRowHtml(r[0], r[1], r[2], false, totalPassif)).join('')
     + breakdownRowHtml('Total passif', totalPassif, null, true, totalPassif);
 
-  // Plus-values / moins-values latentes (valeurs mobilières uniquement, pour info)
+  // Plus-values / moins-values latentes (valeurs mobilières + assurance vie, pour info)
   const pvLines = [];
   state.titres.forEach((titre, ti)=>{
     const titreNom = titre.nom && titre.nom.trim() ? titre.nom.trim() : `Titre ${ti+1}`;
@@ -1265,6 +1270,15 @@ function renderSynthese(){
       }
     });
   });
+  state.av.forEach((item, i)=>{
+    const info = avEcartInfo(item);
+    if(info){
+      const organismeNom = item.organisme && item.organisme.trim() ? item.organisme.trim() : `Contrat ${i+1}`;
+      const contratNom = item.nom && item.nom.trim() ? item.nom.trim() : 'Sans nom';
+      const regimeAV = (item.regime||'moins8') === 'plus8' ? 'AV >8 ans' : 'AV <8 ans';
+      pvLines.push({ name: `${organismeNom} (${regimeAV}) — ${contratNom}`, ecart: info.ecart, pct: info.pct });
+    }
+  });
   const totalPV = pvLines.reduce((a,l)=> a + l.ecart, 0);
   const pvTotalEl = document.getElementById('pv-total');
   pvTotalEl.textContent = (totalPV > 0 ? '+' : '') + fmt(totalPV);
@@ -1272,7 +1286,7 @@ function renderSynthese(){
 
   const bPV = document.getElementById('breakdown-pv');
   if(pvLines.length === 0){
-    bPV.innerHTML = `<div class="empty-note">Renseigne un "Coût d'achat" sur tes lignes de valeurs mobilières pour activer ce suivi.</div>`;
+    bPV.innerHTML = `<div class="empty-note">Renseigne un coût d'achat (valeurs mobilières) ou des versements (assurance vie) pour activer ce suivi.</div>`;
   } else {
     bPV.innerHTML = pvLines.map(l => pvRowHtml(l.name, l.ecart, l.pct)).join('');
   }
