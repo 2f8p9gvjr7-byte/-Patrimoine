@@ -781,9 +781,8 @@ function computeImpotLatentAV(){
   const seuil = num(state.fiscaliteAV.seuil);
   const abattement = (state.fiscaliteAV.situation === 'couple') ? 9200 : 4600;
 
-  let totalGainMoins8 = 0;
-  let totalGainBelowSeuil = 0;   // part des gains >8 ans liée à des versements sous le seuil
-  let totalGainAboveSeuil = 0;   // part des gains >8 ans liée à des versements au-dessus du seuil
+  let totalGainMoins8 = 0, gainMoins8PSEligible = 0;
+  let totalGainBelowSeuil = 0, totalGainAboveSeuil = 0, gainPlus8PSEligible = 0;
   let cumulVersementsPlus8 = 0;
 
   state.av.forEach(item=>{
@@ -791,14 +790,19 @@ function computeImpotLatentAV(){
     if(!info || info.ecart <= 0) return;
     const versements = num(item.versements);
     const gain = info.ecart;
+    // Fonds euros : les prélèvements sociaux sont déjà prélevés chaque année sur les intérêts crédités
+    // (donc pas à recompter ici). Unités de compte : PS dus intégralement à la sortie.
+    const psEligible = item.support !== 'euros';
     if((item.regime||'moins8') === 'moins8'){
       totalGainMoins8 += gain;
+      if(psEligible) gainMoins8PSEligible += gain;
     } else {
       const belowAmount = Math.max(0, Math.min(versements, seuil - cumulVersementsPlus8));
       const fracBelow = versements > 0 ? belowAmount / versements : 1;
       totalGainBelowSeuil += gain * fracBelow;
       totalGainAboveSeuil += gain * (1 - fracBelow);
       cumulVersementsPlus8 += versements;
+      if(psEligible) gainPlus8PSEligible += gain;
     }
   });
 
@@ -809,8 +813,8 @@ function computeImpotLatentAV(){
 
   const totalGainPlus8 = totalGainBelowSeuil + totalGainAboveSeuil;
 
-  const impotLatentAVMoins8 = totalGainMoins8 * (ps + tauxMoins8);
-  const impotLatentAVPlus8 = (taxableBelow * tauxPlus8Bas) + (taxableAbove * tauxPlus8Haut) + (totalGainPlus8 * ps);
+  const impotLatentAVMoins8 = (totalGainMoins8 * tauxMoins8) + (gainMoins8PSEligible * ps);
+  const impotLatentAVPlus8 = (taxableBelow * tauxPlus8Bas) + (taxableAbove * tauxPlus8Haut) + (gainPlus8PSEligible * ps);
 
   return {
     totalGainAV: totalGainMoins8 + totalGainPlus8,
@@ -1002,12 +1006,21 @@ function renderAV(){
           <input type="text" data-key="nom" data-i="${i}" value="${escapeHtml(item.nom||'')}" placeholder="Ex. Fonds euros, Multisupport…">
         </div>
       </div>
-      <div class="field">
-        <label>Régime (âge du contrat)</label>
-        <select data-key="regime" data-i="${i}">
-          <option value="moins8" ${(item.regime||'moins8')==='moins8'?'selected':''}>Moins de 8 ans</option>
-          <option value="plus8" ${item.regime==='plus8'?'selected':''}>Plus de 8 ans</option>
-        </select>
+      <div class="row2">
+        <div class="field">
+          <label>Régime (âge du contrat)</label>
+          <select data-key="regime" data-i="${i}">
+            <option value="moins8" ${(item.regime||'moins8')==='moins8'?'selected':''}>Moins de 8 ans</option>
+            <option value="plus8" ${item.regime==='plus8'?'selected':''}>Plus de 8 ans</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Support</label>
+          <select data-key="support" data-i="${i}">
+            <option value="uc" ${(item.support||'uc')==='uc'?'selected':''}>Unités de compte</option>
+            <option value="euros" ${item.support==='euros'?'selected':''}>Fonds euros</option>
+          </select>
+        </div>
       </div>
       <div class="row2">
         <div class="field">
@@ -1048,7 +1061,7 @@ function renderAV(){
 }
 document.getElementById('btn-add-av').addEventListener('click', ()=>{
   if(state.av.length >= MAX_AV) return;
-  state.av.push({ organisme:'', nom:'', regime:'moins8', versements:'', valeur:'' });
+  state.av.push({ organisme:'', nom:'', regime:'moins8', support:'uc', versements:'', valeur:'' });
   save(); renderAV();
 });
 
@@ -1276,7 +1289,8 @@ function renderSynthese(){
       const organismeNom = item.organisme && item.organisme.trim() ? item.organisme.trim() : `Contrat ${i+1}`;
       const contratNom = item.nom && item.nom.trim() ? item.nom.trim() : 'Sans nom';
       const regimeAV = (item.regime||'moins8') === 'plus8' ? 'AV >8 ans' : 'AV <8 ans';
-      pvLines.push({ name: `${organismeNom} (${regimeAV}) — ${contratNom}`, ecart: info.ecart, pct: info.pct });
+      const supportAV = item.support === 'euros' ? 'Fonds €' : 'UC';
+      pvLines.push({ name: `${organismeNom} (${regimeAV}, ${supportAV}) — ${contratNom}`, ecart: info.ecart, pct: info.pct });
     }
   });
   const totalPV = pvLines.reduce((a,l)=> a + l.ecart, 0);
