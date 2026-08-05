@@ -75,22 +75,43 @@ export default async function handler(req, res) {
   try {
     // --- Recherche d'un symbole à partir d'un nom ---
     if (search) {
-      const url = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(search)}&quotesCount=10&newsCount=0`;
+      const url = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(search)}&quotesCount=20&newsCount=0`;
       const r = await fetch(url, { headers: HEADERS });
       diag.search = 'HTTP ' + r.status;
       if (r.ok) {
         const data = await r.json();
-        const quotes = (data.quotes || []).filter(q => q.symbol);
+
+        // On écarte les fonds/OPCVM (codes Morningstar en 0P...) et les types non cotés
+        const rejete = q =>
+          !q.symbol ||
+          /^0P/i.test(q.symbol) ||
+          ['MUTUALFUND', 'INDEX', 'CURRENCY', 'FUTURE', 'OPTION'].includes(q.quoteType);
+
+        const quotes = (data.quotes || []).filter(q => !rejete(q));
+        diag.candidats = quotes.map(q => `${q.symbol}:${q.quoteType}`).slice(0, 10);
+
         const euro = ['.PA', '.AS', '.BR', '.DE', '.MI', '.MC', '.L', '.LS'];
-        const eq = q => q.quoteType === 'EQUITY';
+        const action = q => q.quoteType === 'EQUITY';
+        const etf = q => q.quoteType === 'ETF';
+
         const best =
-          quotes.find(q => eq(q) && q.symbol.endsWith('.PA')) ||
-          quotes.find(q => eq(q) && euro.some(s => q.symbol.endsWith(s))) ||
-          quotes.find(eq) || quotes[0];
+          // 1. Une action cotée à Paris
+          quotes.find(q => action(q) && q.symbol.endsWith('.PA')) ||
+          // 2. Un ETF coté à Paris
+          quotes.find(q => etf(q) && q.symbol.endsWith('.PA')) ||
+          // 3. Une action sur une autre place européenne
+          quotes.find(q => action(q) && euro.some(s => q.symbol.endsWith(s))) ||
+          // 4. Un ETF sur une autre place européenne
+          quotes.find(q => etf(q) && euro.some(s => q.symbol.endsWith(s))) ||
+          // 5. N'importe quelle action (souvent américaine)
+          quotes.find(action) ||
+          quotes[0];
+
         if (best) {
           return res.status(200).json({
             ok: true, symbol: best.symbol,
             name: best.shortname || best.longname || '',
+            exchange: best.exchDisp || '',
             ...(debug ? { diag } : {})
           });
         }
