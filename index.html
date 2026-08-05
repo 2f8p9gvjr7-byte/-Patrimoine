@@ -200,6 +200,17 @@ body{padding-bottom:40px}
 
 .empty-note{font-size:12px;color:var(--mut);text-align:center;padding:16px 8px}
 
+/* Bouton actualisation des cours */
+#btn-refresh-cours{
+  width:100%;background:var(--amber);border:none;color:#0a1226;
+  padding:13px;border-radius:10px;font-size:13.5px;font-weight:800;letter-spacing:.3px;
+  -webkit-appearance:none;cursor:pointer;margin-bottom:6px;
+}
+#btn-refresh-cours:active{opacity:.8}
+#btn-refresh-cours:disabled{opacity:.5}
+#refresh-status{font-size:11.5px;color:var(--mut);text-align:center;margin-bottom:12px;line-height:1.5;min-height:14px}
+#refresh-status.warn{color:var(--amber)}
+
 /* Titre (valeurs mobilières) block */
 .titre-card{background:var(--pan);border:1px solid var(--bor);border-radius:12px;padding:12px;margin-bottom:12px}
 .titre-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
@@ -231,6 +242,15 @@ body{padding-bottom:40px}
   padding:6px 8px;border-radius:6px;font-size:12.5px;-webkit-appearance:none;font-family:inherit;
 }
 .ligne-bottom .ecart{flex:0 0 auto;font-size:10.5px;font-weight:800;padding:6px 8px;border-radius:6px;white-space:nowrap;text-align:center;align-self:flex-end;min-width:64px}
+.ligne-mkt{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+.ligne-mkt .fld{flex:1;min-width:0}
+.ligne-mkt .fld label{display:block;font-size:8.5px;font-weight:700;color:var(--mut);letter-spacing:.3px;text-transform:uppercase;margin-bottom:2px}
+.ligne-mkt input{
+  width:100%;background:var(--bg);border:1px solid var(--bor);color:var(--txt);
+  padding:6px 8px;border-radius:6px;font-size:12.5px;-webkit-appearance:none;font-family:inherit;
+}
+.cours-note{font-size:9.5px;color:var(--mut);margin-top:5px;line-height:1.4}
+.cours-note b{color:var(--sub);font-weight:700}
 .ecart-plus{background:var(--green-dim);color:var(--green)}
 .ecart-moins{background:var(--red-dim);color:var(--red)}
 .ecart-neutre{background:var(--bor);color:var(--mut)}
@@ -375,6 +395,16 @@ body{padding-bottom:40px}
   <!-- VALEURS MOBILIERES -->
   <div class="view" id="view-mobilier">
     <div class="hint">10 titres (catégories) à nommer librement — ex. Actions, ETF, PEA, Livrets… Chaque titre contient jusqu'à 20 lignes.</div>
+
+    <button id="btn-refresh-cours">↻ Actualiser les cours</button>
+    <div id="refresh-status"></div>
+    <div class="hint" style="margin-top:-4px">
+      Renseigne la <b>quantité</b> et le <b>symbole</b> boursier d'une ligne, puis appuie sur le bouton :
+      la valeur actuelle est recalculée toute seule (quantité × cours du jour).
+      Si tu laisses le symbole vide, l'appli essaie de le trouver à partir du nom de la ligne.
+      Les lignes sans quantité ne sont pas touchées — tu peux continuer à saisir leur valeur à la main.
+      Cours différés d'environ 15 minutes, convertis en euros si nécessaire.
+    </div>
 
     <div class="card" style="margin-bottom:14px">
       <div class="card-head"><span class="idx">Fiscalité des plus-values latentes</span></div>
@@ -538,6 +568,7 @@ body{padding-bottom:40px}
 <script>
 /* ===================== Data ===================== */
 const STORE_KEY = 'patrimoine_v1';
+const FX_KEY = 'patrimoine_fx_v1';
 const MAX_IMMO = 10;
 const MAX_VEHICULES = 10;
 const MAX_TITRES = 10;
@@ -567,6 +598,8 @@ function defaultState(){
 }
 
 let state = load();
+let fxRates = {};
+try{ fxRates = JSON.parse(localStorage.getItem(FX_KEY)) || {}; }catch(e){ fxRates = {}; }
 
 function load(){
   try{
@@ -830,6 +863,16 @@ function ecartBadgeHtml(info){
   return `<span class="ecart ${cls}">${sign}${fmt(info.ecart)}</span>`;
 }
 
+/* --- Note affichée sous une ligne quand un cours a été récupéré --- */
+function coursNoteHtml(ligne){
+  if(!ligne.cours) return '';
+  const dev = ligne.devise && ligne.devise !== 'EUR' ? ' ' + ligne.devise : ' €';
+  const d = ligne.dateCours ? new Date(ligne.dateCours) : null;
+  const quand = d ? d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : '';
+  const conv = (ligne.devise && ligne.devise !== 'EUR') ? ' — converti en euros' : '';
+  return `<div class="cours-note">Cours : <b>${num(ligne.cours).toLocaleString('fr-FR',{maximumFractionDigits:4})}${dev}</b> · ${quand}${conv}</div>`;
+}
+
 function renderMobilier(){
   const c = document.getElementById('mobilier-list');
   c.innerHTML = '';
@@ -865,11 +908,16 @@ function renderMobilier(){
           <input class="nom" type="text" data-ti="${ti}" data-li="${li}" data-key="nom" value="${escapeHtml(ligne.nom||'')}" placeholder="Nom (ex. BNP Paribas)">
           <button class="del" data-ti="${ti}" data-li="${li}">✕</button>
         </div>
+        <div class="ligne-mkt">
+          <div class="fld"><label>Quantité</label><input type="text" inputmode="decimal" data-ti="${ti}" data-li="${li}" data-key="qte" value="${escapeHtml(ligne.qte||'')}" placeholder="nb titres"></div>
+          <div class="fld"><label>Symbole</label><input type="text" data-ti="${ti}" data-li="${li}" data-key="symbole" value="${escapeHtml(ligne.symbole||'')}" placeholder="ex. AKE.PA"></div>
+        </div>
         <div class="ligne-bottom">
-          <div class="fld"><label>Coût d'achat</label><input type="text" inputmode="decimal" data-ti="${ti}" data-li="${li}" data-key="cout" value="${ligne.cout||''}" placeholder="€"></div>
-          <div class="fld"><label>Valeur actuelle</label><input type="text" inputmode="decimal" data-ti="${ti}" data-li="${li}" data-key="valeur" value="${ligne.valeur||''}" placeholder="€"></div>
+          <div class="fld"><label>Coût d'achat</label><input type="text" inputmode="decimal" data-ti="${ti}" data-li="${li}" data-key="cout" value="${escapeHtml(ligne.cout||'')}" placeholder="€"></div>
+          <div class="fld"><label>Valeur actuelle</label><input type="text" inputmode="decimal" data-ti="${ti}" data-li="${li}" data-key="valeur" value="${escapeHtml(ligne.valeur||'')}" placeholder="€"></div>
           <div class="fld" style="flex:0 0 auto"><label>Écart</label>${ecartBadgeHtml(ecartInfo(ligne))}</div>
         </div>
+        ${coursNoteHtml(ligne)}
       `;
       lc.appendChild(row);
     });
@@ -891,7 +939,7 @@ function renderMobilier(){
     inp.addEventListener('input', ()=>{
       const ti = +inp.dataset.ti, li = +inp.dataset.li, key = inp.dataset.key;
       const ligne = state.titres[ti].lignes[li];
-      ligne[key] = inp.value;
+      ligne[key] = (key === 'symbole') ? inp.value.toUpperCase() : inp.value;
       save();
       // update running total + écart badge without full re-render (keeps focus)
       const total = sumBy(state.titres[ti].lignes, 'valeur');
@@ -914,11 +962,113 @@ function renderMobilier(){
     btn.addEventListener('click', ()=>{
       const ti = +btn.dataset.titreAdd;
       if(state.titres[ti].lignes.length >= MAX_LIGNES) return;
-      state.titres[ti].lignes.push({ organisme:'', nom:'', valeur:'', cout:'' });
+      state.titres[ti].lignes.push({ organisme:'', nom:'', valeur:'', cout:'', qte:'', symbole:'', cours:'', devise:'EUR', dateCours:'' });
       save(); renderMobilier();
     });
   });
 }
+
+/* ===================== RECUPERATION DES COURS ===================== */
+// Passe par la fonction serveur /api/quote (le navigateur ne peut pas
+// interroger directement les fournisseurs de cours à cause du blocage CORS).
+async function apiQuote(params){
+  const res = await fetch(`/api/quote?${params}&_=${Date.now()}`, { cache:'no-store' });
+  return await res.json();
+}
+async function fetchCours(symbole){
+  try{
+    const data = await apiQuote(`symbol=${encodeURIComponent(symbole)}`);
+    if(!data.ok || typeof data.price !== 'number') return null;
+    return { price: data.price, devise: (data.currency||'EUR').toUpperCase(), date: data.date };
+  }catch(e){ return null; }
+}
+async function chercheSymbole(nom){
+  try{
+    const data = await apiQuote(`search=${encodeURIComponent(nom)}`);
+    return data.ok ? data.symbol : null;
+  }catch(e){ return null; }
+}
+async function tauxVersEuro(devise){
+  if(!devise || devise === 'EUR') return 1;
+  const cache = fxRates[devise];
+  if(cache && (Date.now() - cache.t) < 6*3600*1000) return cache.r;
+  try{
+    const data = await apiQuote(`symbol=${devise}EUR=X`);
+    if(data.ok && typeof data.price === 'number' && data.price > 0){
+      fxRates[devise] = { r: data.price, t: Date.now() };
+      try{ localStorage.setItem(FX_KEY, JSON.stringify(fxRates)); }catch(e){}
+      return data.price;
+    }
+  }catch(e){}
+  return cache ? cache.r : null;
+}
+
+function setRefreshStatus(txt, warn){
+  const el = document.getElementById('refresh-status');
+  el.textContent = txt || '';
+  el.className = warn ? 'warn' : '';
+}
+
+async function refreshCours(){
+  const btn = document.getElementById('btn-refresh-cours');
+  btn.disabled = true;
+  btn.textContent = '↻ Actualisation…';
+
+  // Toutes les lignes exploitables : il faut une quantité pour recalculer une valeur
+  const cibles = [];
+  state.titres.forEach(t => t.lignes.forEach(l => {
+    const aQuoiChercher = (l.symbole && l.symbole.trim()) || (l.nom && l.nom.trim());
+    if(aQuoiChercher) cibles.push(l);
+  }));
+
+  let maj = 0, sansQte = 0, echecs = 0, trouves = 0;
+
+  for(const l of cibles){
+    // Symbole vide : on le cherche une seule fois à partir du nom, puis on le mémorise
+    if(!l.symbole || !l.symbole.trim()){
+      const sym = await chercheSymbole(l.nom);
+      if(sym){ l.symbole = sym; trouves++; }
+      else { echecs++; continue; }
+    }
+    const q = await fetchCours(l.symbole.trim());
+    if(!q){ echecs++; continue; }
+
+    l.cours = q.price;
+    l.devise = q.devise;
+    l.dateCours = q.date;
+
+    const qte = num(l.qte);
+    if(qte > 0){
+      const taux = await tauxVersEuro(q.devise);
+      if(taux === null){ echecs++; continue; }
+      // Valeur actuelle en euros = quantité × cours × taux de change
+      l.valeur = String(Math.round(qte * q.price * taux * 100) / 100);
+      maj++;
+    } else {
+      sansQte++;
+    }
+  }
+
+  save();
+  renderMobilier();
+  renderAll();
+
+  btn.disabled = false;
+  btn.textContent = '↻ Actualiser les cours';
+
+  if(cibles.length === 0){
+    setRefreshStatus("Aucune ligne à actualiser : renseigne un nom ou un symbole boursier.", true);
+    return;
+  }
+  const bouts = [];
+  if(maj) bouts.push(`${maj} ligne(s) recalculée(s)`);
+  if(trouves) bouts.push(`${trouves} symbole(s) trouvé(s) automatiquement`);
+  if(sansQte) bouts.push(`${sansQte} sans quantité (cours affiché, valeur inchangée)`);
+  if(echecs) bouts.push(`${echecs} introuvable(s) — vérifie le symbole`);
+  setRefreshStatus(bouts.join(' · ') + ' · ' + new Date().toLocaleTimeString('fr-FR'), (echecs>0 || sansQte>0));
+}
+
+document.getElementById('btn-refresh-cours').addEventListener('click', refreshCours);
 
 /* ===================== FISCALITE PLUS-VALUES ===================== */
 function updateFiscTotalDisplay(){
