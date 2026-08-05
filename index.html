@@ -210,6 +210,25 @@ body{padding-bottom:40px}
 #btn-refresh-cours:disabled{opacity:.5}
 #refresh-status{font-size:11.5px;color:var(--mut);text-align:center;margin-bottom:12px;line-height:1.5;min-height:14px}
 #refresh-status.warn{color:var(--amber)}
+#btn-import-portefeuille{
+  width:100%;background:transparent;border:1px solid var(--bor);color:var(--mut);
+  padding:11px;border-radius:10px;font-size:12px;font-weight:700;
+  -webkit-appearance:none;cursor:pointer;margin-bottom:8px;font-family:inherit;
+}
+#btn-import-portefeuille:active{background:var(--pan2)}
+.imp-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:300;
+  display:flex;align-items:center;justify-content:center;padding:16px}
+.imp-sheet{background:var(--pan);border:1px solid var(--bor);border-radius:14px;padding:16px;max-width:640px;width:100%}
+.imp-sheet h2{font-size:14px;color:var(--amber);margin-bottom:6px}
+.imp-sheet p{font-size:11.5px;color:var(--mut);line-height:1.5;margin-bottom:10px}
+.imp-sheet textarea{width:100%;height:120px;background:var(--input-bg);border:1px solid var(--input-bor);
+  color:var(--txt);border-radius:8px;padding:9px;font-size:11px;font-family:monospace;resize:none;-webkit-appearance:none}
+.imp-sheet select{width:100%;background:var(--input-bg);border:1px solid var(--input-bor);color:var(--txt);
+  padding:9px;border-radius:8px;font-size:13px;margin-top:8px;-webkit-appearance:none;font-family:inherit}
+.imp-actions{display:flex;gap:8px;margin-top:12px}
+.imp-actions button{flex:1;padding:11px;border-radius:9px;font-weight:800;font-size:12.5px;border:none;cursor:pointer;font-family:inherit}
+.imp-close{background:var(--pan2);color:var(--mut);border:1px solid var(--bor) !important}
+.imp-ok{background:var(--amber);color:#0a1226}
 
 /* Titre (valeurs mobilières) block */
 .titre-card{background:var(--pan);border:1px solid var(--bor);border-radius:12px;padding:12px;margin-bottom:12px}
@@ -397,12 +416,14 @@ body{padding-bottom:40px}
     <div class="hint">10 titres (catégories) à nommer librement — ex. Actions, ETF, PEA, Livrets… Chaque titre contient jusqu'à 20 lignes.</div>
 
     <button id="btn-refresh-cours">↻ Actualiser les cours</button>
+    <button id="btn-import-portefeuille">⇩ Importer depuis Portefeuille (facultatif)</button>
     <div id="refresh-status"></div>
     <div class="hint" style="margin-top:-4px">
       Renseigne la <b>quantité</b> et le <b>symbole</b> boursier d'une ligne, puis appuie sur le bouton :
       la valeur actuelle est recalculée toute seule (quantité × cours du jour).
+      Le champ <b>Achat / titre</b> est un prix <b>unitaire</b> quand une quantité est renseignée — le total investi
+      s'affiche juste en dessous. Sans quantité, saisis-y directement le montant total investi.
       Si tu laisses le symbole vide, l'appli essaie de le trouver à partir du nom de la ligne.
-      Les lignes sans quantité ne sont pas touchées — tu peux continuer à saisir leur valeur à la main.
       Cours différés d'environ 15 minutes, convertis en euros si nécessaire.
     </div>
 
@@ -556,6 +577,7 @@ body{padding-bottom:40px}
 </div>
 
 <div class="savebar"><span class="dot"></span>Enregistré automatiquement sur cet appareil</div>
+<div id="import-overlay"></div>
 
 <div id="update-banner">
   <div class="msg"><b>Nouvelle version disponible</b>Tes données sont conservées, seule l'application est mise à jour.</div>
@@ -763,8 +785,19 @@ document.getElementById('btn-add-vehicule').addEventListener('click', ()=>{
 });
 
 /* ===================== VALEURS MOBILIERES ===================== */
+/* Coût d'achat total d'une ligne.
+   Si une quantité est renseignée, le champ "coût d'achat" est un prix UNITAIRE
+   et le total vaut quantité × prix unitaire.
+   Sans quantité (saisie 100% manuelle), le champ est directement le montant total. */
+function coutTotal(ligne){
+  const qte = num(ligne.qte);
+  const cout = num(ligne.cout);
+  if(!ligne.cout || cout === 0) return 0;
+  return qte > 0 ? qte * cout : cout;
+}
 function ecartInfo(ligne){
-  const valeur = num(ligne.valeur), cout = num(ligne.cout);
+  const valeur = num(ligne.valeur);
+  const cout = coutTotal(ligne);
   if(!ligne.cout || cout === 0) return null; // pas de coût renseigné -> pas de suivi
   const ecart = valeur - cout;
   const pct = cout !== 0 ? (ecart/cout*100) : 0;
@@ -863,6 +896,12 @@ function ecartBadgeHtml(info){
   return `<span class="ecart ${cls}">${sign}${fmt(info.ecart)}</span>`;
 }
 
+function coutNoteHtml(ligne){
+  const qte = num(ligne.qte), cout = num(ligne.cout);
+  if(!(qte > 0 && cout > 0)) return '';
+  return `<div class="cours-note">Investi : <b>${fmt(qte*cout)}</b> (${qte} × ${cout.toLocaleString('fr-FR',{maximumFractionDigits:4})} €)</div>`;
+}
+
 /* --- Note affichée sous une ligne quand un cours a été récupéré --- */
 function coursNoteHtml(ligne){
   if(!ligne.cours) return '';
@@ -913,10 +952,11 @@ function renderMobilier(){
           <div class="fld"><label>Symbole</label><input type="text" data-ti="${ti}" data-li="${li}" data-key="symbole" value="${escapeHtml(ligne.symbole||'')}" placeholder="ex. AKE.PA"></div>
         </div>
         <div class="ligne-bottom">
-          <div class="fld"><label>Coût d'achat</label><input type="text" inputmode="decimal" data-ti="${ti}" data-li="${li}" data-key="cout" value="${escapeHtml(ligne.cout||'')}" placeholder="€"></div>
+          <div class="fld"><label>Achat / titre</label><input type="text" inputmode="decimal" data-ti="${ti}" data-li="${li}" data-key="cout" value="${escapeHtml(ligne.cout||'')}" placeholder="unitaire"></div>
           <div class="fld"><label>Valeur actuelle</label><input type="text" inputmode="decimal" data-ti="${ti}" data-li="${li}" data-key="valeur" value="${escapeHtml(ligne.valeur||'')}" placeholder="€"></div>
           <div class="fld" style="flex:0 0 auto"><label>Écart</label>${ecartBadgeHtml(ecartInfo(ligne))}</div>
         </div>
+        ${coutNoteHtml(ligne)}
         ${coursNoteHtml(ligne)}
       `;
       lc.appendChild(row);
@@ -1069,6 +1109,89 @@ async function refreshCours(){
 }
 
 document.getElementById('btn-refresh-cours').addEventListener('click', refreshCours);
+
+/* ===================== IMPORT DEPUIS L'APPLI PORTEFEUILLE ===================== */
+/* Entièrement facultatif : qui n'utilise pas Portefeuille saisit normalement. */
+function ouvrirImport(){
+  const options = state.titres.map((t,i)=>{
+    const nom = t.nom && t.nom.trim() ? t.nom.trim() : `Titre ${i+1} (sans nom)`;
+    return `<option value="${i}">${escapeHtml(nom)}</option>`;
+  }).join('');
+
+  document.getElementById('import-overlay').innerHTML = `
+    <div class="imp-overlay">
+      <div class="imp-sheet">
+        <h2>Importer depuis Portefeuille</h2>
+        <p>Dans l'appli Portefeuille, appuie sur « Exporter vers Bilan Patrimoine », copie le code, puis colle-le ici.
+        Les lignes déjà présentes (même nom ou même symbole) sont mises à jour ; les nouvelles sont ajoutées au titre choisi ci-dessous.</p>
+        <textarea id="imp-zone" placeholder="Colle le code ici…"></textarea>
+        <select id="imp-cible">${options}</select>
+        <div class="imp-actions">
+          <button class="imp-close" onclick="fermerImport()">Annuler</button>
+          <button class="imp-ok" onclick="lancerImport()">Importer</button>
+        </div>
+      </div>
+    </div>`;
+}
+function fermerImport(){ document.getElementById('import-overlay').innerHTML = ''; }
+
+function lancerImport(){
+  const brut = document.getElementById('imp-zone').value.trim();
+  const cible = +document.getElementById('imp-cible').value;
+  if(!brut){ alert("Colle d'abord le code copié depuis Portefeuille."); return; }
+
+  let data;
+  try{ data = JSON.parse(brut); }
+  catch(e){ alert("Ce code n'est pas lisible. Vérifie que tu l'as copié en entier."); return; }
+
+  if(!data || data.src !== 'portefeuille' || !Array.isArray(data.lignes)){
+    alert("Ce code ne provient pas de l'appli Portefeuille.");
+    return;
+  }
+
+  const cle = s => (s||'').trim().toLowerCase();
+  let majs = 0, ajouts = 0;
+
+  data.lignes.forEach(imp=>{
+    if(!imp.nom && !imp.symbole) return;
+
+    // Cherche une ligne existante dans tous les titres (même nom ou même symbole)
+    let trouvee = null;
+    state.titres.forEach(t => t.lignes.forEach(l => {
+      if(trouvee) return;
+      if(imp.symbole && cle(l.symbole) && cle(l.symbole) === cle(imp.symbole)) trouvee = l;
+      else if(imp.nom && cle(l.nom) && cle(l.nom) === cle(imp.nom)) trouvee = l;
+    }));
+
+    if(!trouvee){
+      trouvee = { organisme: imp.groupe || '', nom: imp.nom || '', valeur:'', cout:'',
+                  qte:'', symbole:'', cours:'', devise:'EUR', dateCours:'' };
+      if(state.titres[cible].lignes.length >= MAX_LIGNES){ return; }
+      state.titres[cible].lignes.push(trouvee);
+      ajouts++;
+    } else {
+      majs++;
+    }
+
+    if(imp.nom) trouvee.nom = imp.nom;
+    if(imp.symbole) trouvee.symbole = imp.symbole;
+    if(imp.qte !== '' && imp.qte !== null && imp.qte !== undefined) trouvee.qte = String(imp.qte);
+    if(imp.cout !== null && imp.cout !== undefined) trouvee.cout = String(imp.cout);
+    if(imp.valeur !== null && imp.valeur !== undefined) trouvee.valeur = String(imp.valeur);
+    if(imp.cours !== null && imp.cours !== undefined) trouvee.cours = imp.cours;
+    if(imp.devise) trouvee.devise = imp.devise;
+    if(imp.dateCours) trouvee.dateCours = imp.dateCours;
+  });
+
+  fermerImport();
+  save();
+  renderAll();
+
+  const quand = data.date ? new Date(data.date).toLocaleString('fr-FR') : '';
+  setRefreshStatus(`Import terminé : ${majs} ligne(s) mise(s) à jour, ${ajouts} ajoutée(s). Données du ${quand}.`, false);
+}
+
+document.getElementById('btn-import-portefeuille').addEventListener('click', ouvrirImport);
 
 /* ===================== FISCALITE PLUS-VALUES ===================== */
 function updateFiscTotalDisplay(){
