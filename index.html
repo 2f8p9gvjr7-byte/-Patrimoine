@@ -225,6 +225,10 @@ body{padding-bottom:40px}
   color:var(--txt);border-radius:8px;padding:9px;font-size:11px;font-family:monospace;resize:none;-webkit-appearance:none}
 .imp-sheet select{width:100%;background:var(--input-bg);border:1px solid var(--input-bor);color:var(--txt);
   padding:9px;border-radius:8px;font-size:13px;margin-top:8px;-webkit-appearance:none;font-family:inherit}
+.imp-paste{width:100%;background:var(--pan2);border:1px solid var(--amber-dim);color:var(--amber);
+  padding:10px;border-radius:8px;font-size:12.5px;font-weight:700;margin-top:8px;
+  -webkit-appearance:none;cursor:pointer;font-family:inherit}
+.imp-paste:active{opacity:.7}
 .imp-actions{display:flex;gap:8px;margin-top:12px}
 .imp-actions button{flex:1;padding:11px;border-radius:9px;font-weight:800;font-size:12.5px;border:none;cursor:pointer;font-family:inherit}
 .imp-close{background:var(--pan2);color:var(--mut);border:1px solid var(--bor) !important}
@@ -1125,6 +1129,7 @@ function ouvrirImport(){
         <p>Dans l'appli Portefeuille, appuie sur « Exporter vers Bilan Patrimoine », copie le code, puis colle-le ici.
         Les lignes déjà présentes (même nom ou même symbole) sont mises à jour ; les nouvelles sont ajoutées au titre choisi ci-dessous.</p>
         <textarea id="imp-zone" placeholder="Colle le code ici…"></textarea>
+        <button class="imp-paste" onclick="collerDepuisPressePapiers()">📋 Coller le code</button>
         <select id="imp-cible">${options}</select>
         <div class="imp-actions">
           <button class="imp-close" onclick="fermerImport()">Annuler</button>
@@ -1133,6 +1138,23 @@ function ouvrirImport(){
       </div>
     </div>`;
 }
+async function collerDepuisPressePapiers(){
+  const zone = document.getElementById('imp-zone');
+  try{
+    const txt = await navigator.clipboard.readText();
+    if(txt && txt.trim()){
+      zone.value = txt.trim();
+      zone.style.borderColor = 'var(--amber)';
+    } else {
+      alert("Le presse-papiers est vide. Retourne dans Portefeuille, appuie sur « Exporter » puis sur « Copier ».");
+    }
+  }catch(e){
+    // Si l'iPhone refuse l'accès au presse-papiers : collage manuel
+    zone.focus();
+    alert("Appuie longuement dans la zone de texte, puis choisis « Coller ».");
+  }
+}
+
 function fermerImport(){ document.getElementById('import-overlay').innerHTML = ''; }
 
 function lancerImport(){
