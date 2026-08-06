@@ -38,11 +38,12 @@ body{padding-bottom:40px}
 .logo-text .t1{font-size:16px;font-weight:800;color:var(--txt);letter-spacing:.3px;line-height:1.1}
 .logo-text .t2{font-size:10px;color:var(--amber);letter-spacing:1.5px;text-transform:uppercase;font-weight:700}
 #btn-reset{
-  background:var(--red-dim);color:#f2c6c6;border:1px solid #5a3232;
-  padding:7px 11px;font-size:11px;font-weight:700;letter-spacing:.3px;
-  border-radius:6px;-webkit-appearance:none;cursor:pointer;
+  background:transparent;color:#8a6a6a;border:1px solid #4a3030;
+  padding:6px 9px;font-size:9.5px;font-weight:700;letter-spacing:.3px;
+  border-radius:6px;-webkit-appearance:none;cursor:pointer;opacity:.75;
+  max-width:88px;line-height:1.15;
 }
-#btn-reset:active{opacity:.7}
+#btn-reset:active{opacity:1;background:var(--red-dim)}
 
 /* Tabs */
 #tabs{
@@ -327,7 +328,7 @@ body{padding-bottom:40px}
       <div class="t2">Actif · Passif</div>
     </div>
   </div>
-  <button id="btn-reset">RÉINITIALISER</button>
+  <button id="btn-reset">TOUT<br>EFFACER</button>
 </div>
 
 <div id="tabs">
@@ -1173,29 +1174,51 @@ function lancerImport(){
 
   const cle = s => (s||'').trim().toLowerCase();
   let majs = 0, ajouts = 0;
+  // Une même ligne de Patrimoine ne peut être alimentée que par UNE ligne importée.
+  // Sans ça, deux lignes de même symbole dans des groupes différents (ex. BNP.PA
+  // détenu à la fois en compte-titres et en PEA) écraseraient la même ligne.
+  const dejaUtilisees = new Set();
 
   data.lignes.forEach(imp=>{
     if(!imp.nom && !imp.symbole) return;
 
-    // Cherche une ligne existante dans tous les titres (même nom ou même symbole)
+    // 1) Identifiant unique mémorisé lors d'un import précédent : appariement certain
     let trouvee = null;
-    state.titres.forEach(t => t.lignes.forEach(l => {
-      if(trouvee) return;
-      if(imp.symbole && cle(l.symbole) && cle(l.symbole) === cle(imp.symbole)) trouvee = l;
-      else if(imp.nom && cle(l.nom) && cle(l.nom) === cle(imp.nom)) trouvee = l;
-    }));
+    if(imp.id){
+      state.titres.forEach(t => t.lignes.forEach(l => {
+        if(!trouvee && !dejaUtilisees.has(l) && l.srcId && l.srcId === imp.id) trouvee = l;
+      }));
+    }
+
+    // 2) Premier import : on apparie par symbole/nom, en privilégiant le même organisme
+    if(!trouvee){
+      let exact = null, approx = null;
+      state.titres.forEach(t => t.lignes.forEach(l => {
+        if(dejaUtilisees.has(l) || l.srcId) return;  // ligne déjà rattachée à une autre
+        const memeTitre =
+          (imp.symbole && cle(l.symbole) && cle(l.symbole) === cle(imp.symbole)) ||
+          (imp.nom && cle(l.nom) && cle(l.nom) === cle(imp.nom));
+        if(!memeTitre) return;
+        if(imp.groupe && cle(l.organisme) === cle(imp.groupe)){ if(!exact) exact = l; }
+        else if(!approx) approx = l;
+      }));
+      trouvee = exact || approx;
+    }
 
     if(!trouvee){
+      if(state.titres[cible].lignes.length >= MAX_LIGNES){ return; }
       trouvee = { organisme: imp.groupe || '', nom: imp.nom || '', valeur:'', cout:'',
                   qte:'', symbole:'', cours:'', devise:'EUR', dateCours:'' };
-      if(state.titres[cible].lignes.length >= MAX_LIGNES){ return; }
       state.titres[cible].lignes.push(trouvee);
       ajouts++;
     } else {
       majs++;
     }
+    dejaUtilisees.add(trouvee);
+    if(imp.id) trouvee.srcId = imp.id;   // mémorisé pour les imports suivants
 
     if(imp.nom) trouvee.nom = imp.nom;
+    if(imp.groupe && !trouvee.organisme) trouvee.organisme = imp.groupe;
     if(imp.symbole) trouvee.symbole = imp.symbole;
     if(imp.qte !== '' && imp.qte !== null && imp.qte !== undefined) trouvee.qte = String(imp.qte);
     if(imp.cout !== null && imp.cout !== undefined) trouvee.cout = String(imp.cout);
@@ -1864,10 +1887,39 @@ function breakdownRowHtml(name, amt, color, total, base){
 
 /* ===================== Reset ===================== */
 document.getElementById('btn-reset').addEventListener('click', ()=>{
-  if(!confirm('Effacer toutes les données du bilan patrimonial ? Cette action est irréversible.')) return;
+  const t = computeTotals();
+  const nbLignes = state.titres.reduce((a,x)=>a+x.lignes.length,0)
+    + state.immobilier.length + state.vehicules.length + state.av.length
+    + state.pel.length + state.obligations.length + state.livrets.length
+    + state.or.length + state.tresorerie.length + state.emprunts.length + state.cartes.length;
+
+  if(nbLignes === 0 && state.historique.length === 0){
+    alert("Il n'y a rien à effacer.");
+    return;
+  }
+
+  // 1re barrière : rappeler concrètement ce qui va disparaître
+  if(!confirm(
+    "⚠️ EFFACER TOUTES LES DONNÉES ?\n\n" +
+    `${nbLignes} ligne(s) saisie(s)\n` +
+    `${state.historique.length} instantané(s) d'historique\n` +
+    `Patrimoine net actuel : ${fmt(t.net)}\n\n` +
+    "Cette action est DÉFINITIVE et sans retour en arrière.\n" +
+    "Ce bouton ne met pas à jour les cours : pour cela, utilisez « Actualiser les cours » dans l'onglet Valeurs mobilières."
+  )) return;
+
+  // 2e barrière : saisie explicite, impossible à déclencher par mégarde
+  const mot = prompt("Dernière étape : tapez EFFACER en majuscules pour confirmer la suppression définitive.");
+  if(mot === null) return;
+  if(mot.trim().toUpperCase() !== 'EFFACER'){
+    alert("Réinitialisation annulée — vos données sont intactes.");
+    return;
+  }
+
   state = defaultState();
   save();
   renderAll();
+  alert("Toutes les données ont été effacées.");
 });
 
 /* ===================== Render all ===================== */
