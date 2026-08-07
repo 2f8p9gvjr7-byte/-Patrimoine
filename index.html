@@ -209,8 +209,10 @@ body{padding-bottom:40px}
 }
 #btn-refresh-cours:active{opacity:.8}
 #btn-refresh-cours:disabled{opacity:.5}
-#refresh-status{font-size:11.5px;color:var(--mut);text-align:center;margin-bottom:12px;line-height:1.5;min-height:14px}
-#refresh-status.warn{color:var(--amber)}
+#refresh-status{font-size:11.5px;color:var(--mut);text-align:left;margin-bottom:12px;line-height:1.55;
+  min-height:14px;white-space:pre-line;padding:0 2px}
+#refresh-status:not(:empty){background:var(--pan);border:1px solid var(--bor);border-radius:9px;padding:9px 11px}
+#refresh-status.warn{color:var(--amber);border-color:var(--amber-dim)}
 #btn-import-portefeuille{
   width:100%;background:transparent;border:1px solid var(--bor);color:var(--mut);
   padding:11px;border-radius:10px;font-size:12px;font-weight:700;
@@ -1066,17 +1068,23 @@ async function refreshCours(){
     if(aQuoiChercher) cibles.push(l);
   }));
 
-  let maj = 0, sansQte = 0, echecs = 0, trouves = 0;
+  let maj = 0, sansQte = 0, trouves = 0;
+  const nomsSansSymbole = [];   // recherche par nom infructueuse
+  const nomsCoursKO = [];       // symbole présent mais cours non récupéré
+  const nomsSansQte = [];       // cours trouvé mais pas de quantité
+
+  const nomLigne = l => (l.nom && l.nom.trim()) ? l.nom.trim()
+                      : ((l.symbole && l.symbole.trim()) ? l.symbole.trim() : 'ligne sans nom');
 
   for(const l of cibles){
     // Symbole vide : on le cherche une seule fois à partir du nom, puis on le mémorise
     if(!l.symbole || !l.symbole.trim()){
       const sym = await chercheSymbole(l.nom);
       if(sym){ l.symbole = sym; trouves++; }
-      else { echecs++; continue; }
+      else { nomsSansSymbole.push(nomLigne(l)); continue; }
     }
     const q = await fetchCours(l.symbole.trim());
-    if(!q){ echecs++; continue; }
+    if(!q){ nomsCoursKO.push(`${nomLigne(l)} (${l.symbole.trim()})`); continue; }
 
     l.cours = q.price;
     l.devise = q.devise;
@@ -1085,12 +1093,13 @@ async function refreshCours(){
     const qte = num(l.qte);
     if(qte > 0){
       const taux = await tauxVersEuro(q.devise);
-      if(taux === null){ echecs++; continue; }
+      if(taux === null){ nomsCoursKO.push(`${nomLigne(l)} (taux ${q.devise} indisponible)`); continue; }
       // Valeur actuelle en euros = quantité × cours × taux de change
       l.valeur = String(Math.round(qte * q.price * taux * 100) / 100);
       maj++;
     } else {
       sansQte++;
+      nomsSansQte.push(nomLigne(l));
     }
   }
 
@@ -1105,12 +1114,24 @@ async function refreshCours(){
     setRefreshStatus("Aucune ligne à actualiser : renseigne un nom ou un symbole boursier.", true);
     return;
   }
-  const bouts = [];
-  if(maj) bouts.push(`${maj} ligne(s) recalculée(s)`);
-  if(trouves) bouts.push(`${trouves} symbole(s) trouvé(s) automatiquement`);
-  if(sansQte) bouts.push(`${sansQte} sans quantité (cours affiché, valeur inchangée)`);
-  if(echecs) bouts.push(`${echecs} introuvable(s) — vérifie le symbole`);
-  setRefreshStatus(bouts.join(' · ') + ' · ' + new Date().toLocaleTimeString('fr-FR'), (echecs>0 || sansQte>0));
+
+  const lignes = [];
+  const ok = [];
+  if(maj) ok.push(`${maj} ligne(s) recalculée(s)`);
+  if(trouves) ok.push(`${trouves} symbole(s) trouvé(s) automatiquement`);
+  if(ok.length) lignes.push(`✓ ${ok.join(' · ')} — ${new Date().toLocaleTimeString('fr-FR')}`);
+
+  if(nomsSansSymbole.length){
+    lignes.push(`⚠︎ Nom non reconnu : ${nomsSansSymbole.join(', ')}. Vérifie l'orthographe (ex. « BNP Paribas » et non « BNPPARIBAS ») ou saisis directement le symbole boursier dans la case Symbole.`);
+  }
+  if(nomsCoursKO.length){
+    lignes.push(`⚠︎ Cours non récupéré : ${nomsCoursKO.join(', ')}. Vérifie le symbole (ex. AKE.PA pour Arkema à Paris).`);
+  }
+  if(nomsSansQte.length){
+    lignes.push(`ℹ︎ Sans quantité, valeur inchangée : ${nomsSansQte.join(', ')}. Renseigne la quantité pour un calcul automatique.`);
+  }
+
+  setRefreshStatus(lignes.join('\n'), (nomsSansSymbole.length + nomsCoursKO.length + sansQte) > 0);
 }
 
 document.getElementById('btn-refresh-cours').addEventListener('click', refreshCours);
